@@ -1,0 +1,27 @@
+split_version: 1
+construction: day_blocks
+purge_gap_rows: 400
+apply_within: stock_segment
+generalisation: none
+splits:
+  calibration:
+    days:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    share: 0.56
+  validation:
+    days:
+    - 6
+    - 7
+    share: 0.22
+  test:
+    days:
+    - 8
+    - 9
+    share: 0.22
+reserve:
+  days:
+  - 10

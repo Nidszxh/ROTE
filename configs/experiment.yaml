@@ -1,0 +1,54 @@
+run:
+  name: full
+  tier: 2
+  claim: both
+  bootstrap_seed: 20260101
+proposal:
+  path: PROPOSAL.md
+  sha256: null
+dataset:
+  name: FI-2010
+  root: null
+  file: Train_Dst_NoAuction_DecPre_CF_7.txt
+  source: null
+  fold: null
+  auction: false
+  variant: DecPre
+  scope: global
+  scale_exponent: 6
+  levels: 10
+  events_per_row: 10
+  labels: forbidden
+  fallback:
+    on_a1_failure:
+    - decimal_precision_files
+    - LOBSTER
+    forbidden:
+    - invert_zscore
+    - invert_min_max
+    lobster_confirmed_on_day1: false
+period:
+  horizon: 20
+  rows_per_period: 20
+splits:
+  file: configs/splits.yaml
+audit:
+  checks:
+  - A0
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+  - A7
+  - A8
+  report: data/README.md
+  decision_log: docs/decision_log.md
+  burn_in_rows: 100
+  min_effective_windows: 100
+  blocking:
+  - A0
+  - A1
+  - A2
+  - A4

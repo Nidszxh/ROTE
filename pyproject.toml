@@ -1,0 +1,49 @@
+[project]
+name = "rote"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "pyyaml>=6.0",
+    "cvxpy>=1.4",
+    "statsmodels>=0.14",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.5"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q --strict-markers"
+markers = [
+  "slow: long-running experiment smoke tests",
+  "T1: correctness standard T1 (PROPOSAL.md section 9)",
+  "T2: correctness standard T2 (PROPOSAL.md section 9)",
+  "T3: correctness standard T3 (PROPOSAL.md section 9)",
+  "T4: correctness standard T4 (PROPOSAL.md section 9)",
+  "T5: correctness standard T5 (PROPOSAL.md section 9)",
+  "T6: correctness standard T6 (PROPOSAL.md section 9)",
+  "T7: correctness standard T7 (PROPOSAL.md section 9)",
+  "T8: correctness standard T8 (PROPOSAL.md section 9)",
+  "T9: correctness standard T9 (PROPOSAL.md section 9)",
+  "T10: correctness standard T10 (PROPOSAL.md section 9)",
+  "T11: correctness standard T11 (PROPOSAL.md section 9)",
+  "T12: correctness standard T12 (PROPOSAL.md section 9)",
+  "T13: correctness standard T13 (PROPOSAL.md section 9)",
+  "T14: correctness standard T14 (PROPOSAL.md section 9)",
+  "A1: audit check",
+  "A4: audit check",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
