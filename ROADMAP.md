@@ -18,14 +18,14 @@ A trader must liquidate (or buy) a large parent order. Trading fast pays market 
 | Both | Review-1 feedback incorporated; every member presents and can answer on everything | Feedback log (Section 8); rotation of presenters and quiz sessions (Section 7) |
 
 **Definition of done**
-- [ ] Clean loader and on-demand statistics for any stock and day
-- [ ] Impact model calibrated and validated out of sample
-- [ ] M1 and M2 working, tested, interpreted (the minimum for both courses)
-- [ ] M3 and M4 working (full OR coverage)
-- [ ] Immediate and TWAP benchmarks compared on cost and risk
-- [ ] Streamlit app: Data → Statistics → Optimiser → Compare → Decision
-- [ ] Review-1 feedback addressed and logged
-- [ ] Final deck, report, README, demo backup recording
+- [x] Clean loader and on-demand statistics for any stock and day
+- [x] Impact model calibrated and validated out of sample
+- [x] M1 and M2 working, tested, interpreted (the minimum for both courses)
+- [x] M3 and M4 working (full OR coverage)
+- [x] Immediate and TWAP benchmarks compared on cost and risk
+- [x] Streamlit app: Data → Statistics → Optimiser → Compare → Decision
+- [x] Review-1 feedback addressed and logged
+- [x] Final deck, report, README, demo backup recording
 
 ---
 
