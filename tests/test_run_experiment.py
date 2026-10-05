@@ -22,9 +22,13 @@ def test_unknown_command(capsys):
 
 
 def test_stubs(capsys):
-    assert rx.main(["calibrate"]) == 0
-    assert "stub" in capsys.readouterr().out
     assert rx.main(["frontier"]) == 0
     assert "stub" in capsys.readouterr().out
+
+def test_calibrate_command(capsys):
+    assert rx.main(["calibrate"]) == 0
+    assert "Calibrating" in capsys.readouterr().out
+
+def test_check_formulation_command(capsys):
     assert rx.main(["check-formulation"]) == 0
-    assert "stub" in capsys.readouterr().out
+    assert "Checking" in capsys.readouterr().out

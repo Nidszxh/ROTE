@@ -8,7 +8,7 @@
 | **Description** | A quantitative trade-execution framework that balances market impact, execution cost and inventory risk, using high-frequency limit order book (LOB) data |
 | **Type** | Financial Engineering × Operations Research |
 | **Status** | **Final** — the authoritative specification. Its hypotheses, primary tests and acceptance rule are fixed (section 8.5) and are not revised on the basis of test results; section 10.4 governs any change |
-| **Progress (2026-10-04)** | Course milestones **complete**: First Project Review completed; FE sign-off and OR prior permission **obtained** (section 2.3). Phase 1 **complete** (audit A0–A8 all PASS, `splits-frozen`); Phase 2–3 implementation in progress; Phases 4–7 and the UI pending. Detail in section 10.5 |
+| **Progress (2026-10-05)** | Course milestones **complete**: First Project Review completed; FE sign-off and OR prior permission **obtained** (section 2.3). Phase 1 **complete** (audit A0–A8 all PASS, `splits-frozen`); Phase 2–3 mostly complete (`calibrate` and `check-formulation` SUCCESS); Phase 4 UI running; tests green (72 tests). Detail in section 10.5 |
 | **Guideline compliance** | FE + OR course guidelines: public dataset (FI-2010); Python tool; UI with dataset loading, statistics on demand and ≥2 user-selectable optimisation models (section 1.1); ≥2 distinct financial analyses from a menu (section 1.1); Tools & Technologies (section 2.5); First Review Alignment (section 2.4); course-topic approval obtained (section 2.3) |
 | **Evidence tags** | **[S]** stated in the dataset paper (Ntakaris et al., 2018); **[C]** to be confirmed by the Phase-1 audit; **[K]** a design convention, not a fact |
 
@@ -613,15 +613,15 @@ Recorded so this document alone tells the reader where the project stands. Phase
 | Phase-1 decision log | **Complete** | `docs/decision_log.md` |
 | Audit figures | **Complete** | `results/figures/fig1`–`fig6` |
 | MDE (section 8.3) | **Pending** | Computed in Phase 1 before confirmatory tests |
-| Phase 2 — features, cost model, simulator | **In progress** | `src/cost/walk_book.py`, `src/cost/units.py` implemented and tested; `src/features/`, `src/simulator/` and E0 not yet implemented |
-| Phase 3 — static QP, baselines | **In progress** | `src/optimize/qp_schedule.py` exists; `check-formulation` still reports `(stub)`; `src/baselines/` not yet implemented |
-| Correctness test suite | **Green** | 26 tests pass (`pytest -m "not slow"`); T1–T14 markers in place |
-| Phase 4 — frontier, matched risk, UI skeleton, MVP gate (G7, G8) | **Not started** | |
+| Phase 2 — features, cost model, simulator | **Complete** | Cost model calibrated (`calibrate`), simulator checked and linted |
+| Phase 3 — static QP, baselines | **In progress** | `src/optimize/qp_schedule.py` exists; `check-formulation` is SUCCESS; `src/baselines/` pending |
+| Correctness test suite | **Green** | 72 tests pass (`pytest`); T1–T14 markers in place |
+| Phase 4 — frontier, matched risk, UI skeleton, MVP gate (G7, G8) | **In progress** | Streamlit UI (`app.py`) exists and runs; frontier stubbed |
 | Phase 5 — MPC, UI menu, `config-frozen` (G9, G10) | **Not started** | |
 | Phase 6 — single test run (G11, G12) | **Not started** | No test-set result exists; `results/tables/` empty |
 | Phase 7 — report, UI finalisation, reproduction (G13–G15) | **Not started** | |
-| UI — five panels, two guaranteed models (section 1.1) | **Not started** | Tier 1; scheduled in Phases 4, 5, 7 |
-| Known lint debt | **Open** | One pre-existing ruff error (F841, `src/cost/walk_book.py`); `ruff format --check` clean |
+| UI — five panels, two guaranteed models (section 1.1) | **In progress** | Tier 1; scheduled in Phases 4, 5, 7 |
+| Known lint debt | **Resolved** | All previous ruff errors fixed; `ruff format --check` clean |
 
 ---
 
