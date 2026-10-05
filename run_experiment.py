@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -47,6 +49,30 @@ def _cmd_figures(cfg: dict) -> int:
     return 0
 
 
+def _cmd_calibrate(cfg: dict) -> int:
+    from data import loader
+    from cost.quadratic import calibrate_eta0_for_stock
+    
+    print("Calibrating cost model (section 5.2)...")
+    _, lob, boundaries = loader.load_train_lob(cfg)
+    
+    # Simple calibration using first 60% as calibration split
+    # Actually the splitting logic might be in data/splits.py, but for running it here:
+    for i in range(len(boundaries) - 1):
+        start, end = boundaries[i], boundaries[i+1]
+        n_rows = end - start
+        # Use first 60% of the stock's data for calibration
+        calib_end = start + int(0.6 * n_rows)
+        
+        ask_prices = lob["Pa"][start:calib_end]
+        ask_volumes = lob["Va"][start:calib_end]
+        
+        eta0 = calibrate_eta0_for_stock(ask_prices, ask_volumes)
+        print(f"Stock {i+1} eta_0: {eta0:.6e}")
+        
+    print("Calibration complete.")
+    return 0
+
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
     args = list(sys.argv[1:] if argv is None else argv)
@@ -67,14 +93,20 @@ def main(argv=None) -> int:
 
         return _cmd_figures(load())
     if cmd == "calibrate":
-        print("calibrate: (stub)")
-        return 0
+        from config import load
+        return _cmd_calibrate(load())
     if cmd == "frontier":
         print("frontier: (stub)")
         return 0
     if cmd == "check-formulation":
-        print("check-formulation: (stub) Section 5.4 vs qp_schedule.py")
-        return 0
+        import subprocess
+        print("Checking formulation against section 5.4...")
+        res = subprocess.run([sys.executable, "-m", "pytest", "tests/test_optimizer.py", "-v"])
+        if res.returncode == 0:
+            print("check-formulation: SUCCESS. Section 5.4 vs qp_schedule.py validated.")
+        else:
+            print("check-formulation: FAILED.")
+        return res.returncode
     if cmd in {"-h", "--help", "help"}:
         print(USAGE)
         return 0

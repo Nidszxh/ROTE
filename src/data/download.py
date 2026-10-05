@@ -19,3 +19,7 @@ def ensure_dataset(root: str | None = None) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     (root / ".gitkeep").touch(exist_ok=True)
     return root
+
+if __name__ == "__main__":
+    path = ensure_dataset()
+    print(f"Dataset directory ensured at: {path}")
