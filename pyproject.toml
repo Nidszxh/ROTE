@@ -19,7 +19,7 @@ dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = [".", "src"]
 addopts = "-q --strict-markers"
 markers = [
   "slow: long-running experiment smoke tests",
@@ -37,6 +37,9 @@ markers = [
   "T12: correctness standard T12 (PROPOSAL.md section 9)",
   "T13: correctness standard T13 (PROPOSAL.md section 9)",
   "T14: correctness standard T14 (PROPOSAL.md section 9)",
+  "T15: correctness standard T15 (PROPOSAL.md section 9)",
+  "T16: correctness standard T16 (PROPOSAL.md section 9)",
+  "T17: correctness standard T17 (PROPOSAL.md section 9)",
   "A1: audit check",
   "A4: audit check",
 ]

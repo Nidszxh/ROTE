@@ -1,3 +1,7 @@
+"""FI-2010 dataset loading, scale recovery, and LOB reconstruction."""
+
+from __future__ import annotations
+
 import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -49,6 +53,10 @@ class Lob(TypedDict):
     Da: np.ndarray
     Db: np.ndarray
     OBI: np.ndarray
+
+
+class ScaleDetection(TypedDict):
+    k_decpre: int | None
 
 
 def stock_name(i: int) -> str:
@@ -104,6 +112,8 @@ def load_fi2010_file(path: str | Path) -> tuple[np.ndarray, FileMeta]:
 
 
 def recover_scale(k_decpre: int = 6) -> ScaleInfo:
+    if k_decpre < 0:
+        raise ValueError(f"k_decpre must be non-negative, got {k_decpre}")
     k = int(k_decpre)
     return ScaleInfo(
         k_decpre=k,
@@ -115,6 +125,10 @@ def recover_scale(k_decpre: int = 6) -> ScaleInfo:
 
 
 def reconstruct_lob(X: np.ndarray, k_decpre: int = 6) -> Lob:
+    if not isinstance(X, np.ndarray) or X.ndim != 2:
+        raise ValueError(f"expected 2-D feature matrix, got shape {getattr(X, 'shape', 'unknown')}")
+    if X.shape[1] < N_FEATURES:
+        raise ValueError(f"expected at least {N_FEATURES} feature columns, got {X.shape[1]}")
     n_samples = X.shape[0]
     scale = recover_scale(k_decpre)
     levels = X[:, : LOB_LEVELS * 4]
@@ -132,10 +146,26 @@ def reconstruct_lob(X: np.ndarray, k_decpre: int = 6) -> Lob:
     OBI = np.zeros(n_samples)
     mask = denom > 0
     OBI[mask] = (Db[mask] - Da[mask]) / denom[mask]
-    return Lob(Pa=Pa, Va=Va, Pb=Pb, Vb=Vb, Pa1=Pa1, Pb1=Pb1, M=M, S=S, Da=Da, Db=Db, OBI=OBI)
+    return Lob(
+        Pa=Pa,
+        Va=Va,
+        Pb=Pb,
+        Vb=Vb,
+        Pa1=Pa1,
+        Pb1=Pb1,
+        M=M,
+        S=S,
+        Da=Da,
+        Db=Db,
+        OBI=OBI,
+    )
 
 
 def find_stock_boundaries(m_series: np.ndarray, threshold: float = BOUNDARY_JUMP_EUR) -> list[int]:
+    if not isinstance(m_series, np.ndarray) or m_series.ndim != 1:
+        raise ValueError(
+            f"expected 1-D mid-price series, got shape {getattr(m_series, 'shape', 'unknown')}"
+        )
     if len(m_series) < 2:
         return []
     diffs = np.abs(np.diff(m_series))
@@ -155,8 +185,9 @@ def segment_boundaries(jumps: Sequence[int], n_samples: int) -> list[int]:
 
 
 def resolve_data_root(config: Mapping[str, Any]) -> Path:
-    candidates = []
-    root = (config.get("dataset") or {}).get("root")
+    candidates: list[Path] = []
+    dataset = config.get("dataset") or {}
+    root = dataset.get("root")
     if root:
         candidates.append(Path(root))
     env = os.environ.get("ROTE_DATA_ROOT")
@@ -175,10 +206,18 @@ def resolve_train_file(
     config: Mapping[str, Any] | None = None, *, data_root: Path | None = None
 ) -> Path:
     if data_root is None:
-        data_root = resolve_data_root(config or {})
+        if config is None:
+            raise ValueError("config required when data_root not provided")
+        data_root = resolve_data_root(config)
+    if config is not None:
+        preferred = (config.get("dataset") or {}).get("file")
+        if preferred:
+            p = data_root / preferred
+            if p.is_file():
+                return p
     candidates = sorted(data_root.glob("Train*.txt"))
     if not candidates:
-        raise FileNotFoundError(f"no training file in {data_root}")
+        raise FileNotFoundError(f"no training file matching 'Train*.txt' in {data_root}")
     return candidates[0]
 
 
@@ -192,72 +231,27 @@ def load_train_lob(config: Mapping[str, Any]) -> tuple[np.ndarray, Lob, list[int
     return X, lob, boundaries
 
 
-def resolve_test_file(
-    config: Mapping[str, Any] | None = None, day: int = 8, *, data_root: Path | None = None
-) -> Path:
-    if data_root is None:
-        data_root = resolve_data_root(config or {})
-    cf_id = day - 7
-    candidates = sorted(data_root.glob(f"Test*CF_{cf_id}.txt"))
-    if not candidates:
-        # Fallback to train file if Test is unavailable, just to make something work for now,
-        # but realistically we expect Test_Dst_NoAuction_DecPre_CF_*.txt
-        candidates = sorted(data_root.glob("Train*.txt"))
-        if not candidates:
-            raise FileNotFoundError(f"no test file for day {day} in {data_root}")
-    return candidates[0]
+def period_log_returns(m_series: np.ndarray, rows_per_period: int) -> np.ndarray:
+    if not isinstance(m_series, np.ndarray) or m_series.ndim != 1:
+        return np.array([], dtype=float)
+    if rows_per_period <= 1:
+        return np.array([], dtype=float)
+    n = len(m_series)
+    if n < 2 * rows_per_period:
+        return np.array([], dtype=float)
+    n_periods = n // rows_per_period
+    end = n_periods * rows_per_period
+    period_mids = m_series[:end].reshape(n_periods, rows_per_period)[:, -1]
+    if len(period_mids) < 2:
+        return np.array([], dtype=float)
+    return np.diff(np.log(period_mids))
 
 
-def load_test_lob(config: Mapping[str, Any], day: int) -> tuple[np.ndarray, Lob, list[int]]:
-    k = int((config.get("dataset") or {}).get("scale_exponent", 6))
-    path = resolve_test_file(config, day=day)
-    X, _ = load_fi2010_file(path)
-    lob = reconstruct_lob(X, k_decpre=k)
-    return X, lob, [0, len(lob["M"])]
-
-
-def split_row_ranges(start: int, end: int, num_days: int) -> list[tuple[int, int]]:
-    length = (end - start) // num_days
-    ranges = []
-    for i in range(num_days):
-        s = start + i * length
-        e = start + (i + 1) * length if i < num_days - 1 else end
-        ranges.append((s, e))
-    return ranges
-
-
-def load_day(stock: str, day: int) -> tuple[Lob, int, bool]:
-    # Returns (lob_slice, day_index, is_measured_boundary)
-    config = {}
-    stock_idx = -1
-    for i, name in enumerate(STOCK_NAMES):
-        if stock in name:
-            stock_idx = i
-            break
-    if stock_idx == -1:
-        stock_idx = 0  # fallback
-
-    if day <= 7:
-        _, lob, boundaries = load_train_lob(config)
-        if stock_idx >= len(boundaries) - 1:
-            stock_idx = len(boundaries) - 2
-        start = boundaries[stock_idx]
-        end = boundaries[stock_idx + 1]
-        ranges = split_row_ranges(start, end, 7)
-        if day - 1 >= len(ranges):
-            raise ValueError(f"Day {day} out of bounds")
-        s, e = ranges[day - 1]
-        lob_slice = {k: v[s:e] for k, v in lob.items()}
-        return lob_slice, day, False
-    else:
-        _, lob, boundaries = load_test_lob(config, day)
-        # Note: If test file has multiple stocks (which FI-2010 test files actually do!),
-        # we still segment it based on mid price jumps
-        jumps = find_stock_boundaries(lob["M"])
-        test_bounds = segment_boundaries(jumps, len(lob["M"]))
-        if stock_idx < len(test_bounds) - 1:
-            s, e = test_bounds[stock_idx], test_bounds[stock_idx + 1]
-            lob_slice = {k: v[s:e] for k, v in lob.items()}
-        else:
-            lob_slice = lob
-        return lob_slice, day, True
+def sigma_min_floor(returns: np.ndarray) -> float:
+    if not isinstance(returns, np.ndarray) or returns.size == 0:
+        return 0.0
+    magnitudes = np.abs(returns)
+    nonzero = magnitudes[magnitudes > 1e-7]
+    if nonzero.size == 0:
+        return 0.0
+    return float(np.percentile(nonzero, 10.0))
