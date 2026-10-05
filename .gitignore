@@ -17,9 +17,19 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+# uv.lock is intentionally NOT ignored: it is the reproducibility record for the
+# pinned environment and belongs in version control if it is ever generated.
+
+# Secrets and local overrides. OpenCode denies agent reads of `.env*` by
+# default; these rules are what stops them being committed.
+.env
+.env.*
+!.env.example
 
 # Notebooks (PROPOSAL.md section 1.1)
 .ipynb_checkpoints/
+# Streamlit credentials, if the UI is ever configured for a remote deployment.
+.streamlit/secrets.toml
 
 # --- Data: never commit FI-2010 (licence terms: data/README.md) ---
 # This rule is the ONLY guard against committing the dataset: there is no
@@ -28,6 +38,9 @@ dist/
 /data/raw/*
 !/data/raw/.gitkeep
 /data/processed/
+# The in-repo convenience symlink `data/raw/FI-2010 -> ~/data/FI-2010` is already
+# covered by `/data/raw/*` above. Note that `git check-ignore -v` on a path
+# *through* the symlink fails with "beyond a symbolic link"; check the link itself.
 
 # --- Run caches and bulk intermediates ---
 # results/tables/, results/figures/ and results/runs/<run_id>/run_manifest.json
@@ -37,7 +50,11 @@ dist/
 /results/runs/**/*.npz
 /results/runs/**/*.pkl
 
-# Editors and OS
+# Editors, OS and merge leftovers
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db
+*.orig
+*.rej
+*~

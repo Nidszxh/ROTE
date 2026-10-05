@@ -30,6 +30,69 @@ dataset:
 period:
   horizon: 20
   rows_per_period: 20
+execution:
+  rho: 0.25
+  pi: 0.005
+  resilience:
+    base: 0.5
+    grid:
+    - 1.0
+    - 0.5
+    - 0.25
+    - 0.0
+  theta:
+  - 0.25
+  - 0.5
+  - 1.0
+  - 2.0
+  - 5.0
+  theta_stress: 5.0
+  confirmatory_theta: 1.0
+  twap_prime_factor: 0.5
+  depth_proportional:
+    trailing_median_rows: 200
+  ac:
+    impact_depth: median
+  # Section 5.2: kappa^2 = lambda~*sigma~^2/(eta~0*theta) = 2(cosh(omega)-1) is the
+  # single quantity that sets the schedule, so omega is the grid and lambda is
+  # derived per stock and window. An absolute lambda grid is not portable across
+  # stocks: eta~0 scales as 1/M_0 and sigma~^2 as 1/M_0^2, so one fixed lambda
+  # means a different urgency per stock.
+  omega_grid:
+  - 0.0
+  - 0.05
+  - 0.1
+  - 0.2
+  - 0.4
+  - 0.8
+  - 1.6
+  risk_levels:
+    low: 0.1
+    medium: 0.4
+    high: 1.6
+  calibration:
+    probe_grid_size: 10
+  windows:
+    burn_in_rows: 100
+    min_effective: 100
+    stride_rows: 400
+  evaluation:
+    bootstrap_block: 5
+    bootstrap_reps: 2000
+    holm_family: 0.05
+    day_blocks:
+      train_file_days: 7
+      calibration_days: 5
+      validation_days: 2
+      day_length_assumption: uniform
+    baseline_order:
+    - immediate
+    - twap_T
+    - twap_Tprime
+    - depth_proportional
+    - ac
+    - ac_capped
+    - rote_static
 splits:
   file: configs/splits.yaml
 audit:
