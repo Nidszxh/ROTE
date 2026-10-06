@@ -22,7 +22,7 @@ from src.reports.visualizations import (
 )
 from src.sim.simulate import simulate
 from src.stats.stats import compute_statistics
-from src.utils.contracts import Order
+from src.utils.contracts import Order, Schedule
 
 
 def generate_all_reports_and_figures(
@@ -82,6 +82,8 @@ def generate_all_reports_and_figures(
         "sigma": 0.015,
         "c_f": 5.0,
         "L_min": 100.0,
+        "phi": 0.5,
+        "pi": 0.005,
     }
 
     schedules = {
@@ -95,9 +97,7 @@ def generate_all_reports_and_figures(
 
     results = []
     for name, sh in schedules.items():
-        sched_obj = solve_m1(order, book, params)
-        object.__setattr__(sched_obj, "shares", np.asarray(sh, dtype=float))
-        rep = simulate(sched_obj, book)
+        rep = simulate(Schedule(shares=sh), book, params)
         results.append(
             {
                 "Model": name,

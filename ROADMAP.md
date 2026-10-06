@@ -69,7 +69,7 @@ Name owners in the repo README. Everyone reviews at least one other person's pul
 
 | # | Workstream | Owns | Also owns |
 |---|---|---|---|
-| 1 | **Data and app shell** | `loader.py`, cleaning, validation, `stats.py`, Data and Statistics tabs, Streamlit skeleton | Final integration and deployment |
+| 1 | **Data and app shell** | `loader.py`, cleaning, validation, `stats.py`, Data and Statistics tabs, Streamlit integration | Final integration and deployment |
 | 2 | **Finance and simulation** | `impact.py` (calibration), `simulate.py`, benchmarks, Compare tab | Financial interpretation of results; Decision-tab wording |
 | 3 | **Optimisation A** | M1 (closed form + cvxpy), frontier over λ, M4 (AHP/goal programming) | Optimiser tab for M1; Decision tab logic |
 | 4 | **Optimisation B** | M2 (LP, shadow prices), M3 (MIP), sensitivity analysis | Optimiser tab for M2 and M3 |

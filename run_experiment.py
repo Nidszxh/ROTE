@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
+import json
 import logging
 import sys
 
@@ -10,7 +11,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-USAGE = "ROTE: use audit|freeze-splits|calibrate|frontier|check-formulation|figures|full"
+USAGE = (
+    "ROTE: use audit|freeze-splits|calibrate|frontier|check-formulation|figures|full "
+    "[--test --confirm]"
+)
 
 
 def _cmd_audit(cfg: dict) -> int:
@@ -51,14 +55,15 @@ def _cmd_figures(cfg: dict) -> int:
 
 
 def _cmd_calibrate(cfg: dict) -> int:
+    from pathlib import Path
+
     from cost.quadratic import calibrate_eta0_for_stock
     from data import loader
 
     print("Calibrating cost model (section 5.2)...")
     _, lob, boundaries = loader.load_train_lob(cfg)
 
-    # Simple calibration using first 60% as calibration split
-    # Actually the splitting logic might be in data/splits.py, but for running it here:
+    estimates = {}
     for i in range(len(boundaries) - 1):
         start, end = boundaries[i], boundaries[i + 1]
         n_rows = end - start
@@ -69,8 +74,13 @@ def _cmd_calibrate(cfg: dict) -> int:
         ask_volumes = lob["Va"][start:calib_end]
 
         eta0 = calibrate_eta0_for_stock(ask_prices, ask_volumes)
+        estimates[str(i + 1)] = eta0
         print(f"Stock {i + 1} eta_0: {eta0:.6e}")
 
+    output = Path("results/tables/calibration.json")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps({"eta_0": estimates}, indent=2) + "\n", encoding="utf-8")
+    print(f"Calibration saved to {output}")
     print("Calibration complete.")
     return 0
 
@@ -99,7 +109,10 @@ def main(argv=None) -> int:
 
         return _cmd_calibrate(load())
     if cmd == "frontier":
-        print("frontier: (stub)")
+        from src.reports.generate_report import generate_all_reports_and_figures
+
+        generate_all_reports_and_figures()
+        print("frontier: generated results/figures and results/MODEL_EXECUTION_REPORT.md")
         return 0
     if cmd == "check-formulation":
         import subprocess
@@ -113,6 +126,23 @@ def main(argv=None) -> int:
         return res.returncode
     if cmd in {"-h", "--help", "help"}:
         print(USAGE)
+        return 0
+    if cmd == "full":
+        if len(args) > 1 and args[1:] != ["--test", "--confirm"]:
+            print("full accepts only --test --confirm")
+            return 2
+        if "--test" in args and "--confirm" not in args:
+            print("full --test requires --confirm")
+            return 2
+        from config import load
+
+        cfg = load()
+        for handler in (_cmd_audit, _cmd_calibrate, _cmd_figures):
+            if handler(cfg) != 0:
+                return 1
+        from src.reports.generate_report import generate_all_reports_and_figures
+
+        generate_all_reports_and_figures(day=8 if "--test" in args else 1)
         return 0
     print(f"run_experiment: unknown command {cmd!r}")
     print(USAGE)

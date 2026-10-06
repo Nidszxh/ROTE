@@ -1,55 +1,168 @@
 # AGENTS.md
 
-## Repo state (read first)
+ROTE = Risk-Aware Optimal Trade Execution on FI-2010. Research code, not a product.
 
-- **ROTE** = Risk-Aware Optimal Trade Execution. Authority split: `PROPOSAL.md` = the specification (what is built, how it is judged); root `ROADMAP.md` = approach, model menu (M1–M4), 8-week schedule and owner split; `AGENTS.md` (this file) = engineering scaffold; `docs/decision_log.md` = dated decisions; `docs/feedback_log.md` = review-1 feedback; `docs/REUSE_ANALYSIS.md` = rejected alternatives. `CHANGELOG.md` and `DECISIONS.md` were **deleted** — don't reference them. Experiment numbers live only in `configs/experiment.yaml`.
-- **The working tree is mid-migration and UNCOMMITTED.** HEAD (`d010895`) still contains the old pipeline; the tree deleted it (`src/data`, `src/cost`, `src/optimize`, `src/simulator`, `src/features`, `run_experiment.py`, `data/README.md`, all six `results/figures/*.png`, all 17 committed test files) and added ROADMAP-shaped stubs: `src/loader`, `src/impact`, `src/models/{m1_ac,m2_lp,m3_mip,m4_ahp}`, `src/sim`, `src/stats`, `src/benchmarks`, `src/utils/contracts.py`. Only `src/config.py` and `src/utils/contracts.py` have real code. So `git show HEAD:src/data/loader.py` works even though the file is gone — history is not the tree.
-- **`README.md` is stale** (it documents `run_experiment.py`, `src/data`, 222 tests and `docs/ROADMAP.md`, none of which exist now). Trust code and `PROPOSAL.md` over it. Its setup/dependency sections are still accurate.
-- **`PROPOSAL.md` was rewritten 2026-10-05** to be ROADMAP-governed and renumbered: section 6 = models, 7 = baselines/interface, 8 = simulator, **9 = correctness standards (T1–T17)**, 10 = evaluation protocol, 11 = delivery plan/progress. Section numbers are cross-referenced from `pyproject.toml` markers — keep section 9 as the T-gate section if you edit it.
-- No packaging, no CI, no pre-commit: every check below is manual. Dataset: FI-2010 (DecPre, NoAuction), outside the repo, **never committed**; labels are forbidden (`configs/experiment.yaml: dataset.labels`).
+## Authority order
+
+`PROPOSAL.md` (the spec) → this file → `docs/decision_log.md`. The decision log is dated
+and records *why* things are the way they are; it contradicts the spec in places, so read it
+before "fixing" anything that looks wrong. `PROPOSAL.md` section 9 defines the T1–T17
+correctness standards; section 5.4 defines the QP. Trust the tree over both docs — several
+described directories do not exist.
 
 ## Environment
 
 ```bash
-export ROTE_DATA_ROOT="$HOME/data/FI-2010"   # 4 files, ~897 MiB; required by anything that reads the data
-uv venv .venv && uv pip install -r pyproject.toml --extra dev   # deps only, never -e .
-uv run --no-sync python -c "import numpy,cvxpy; assert 'OSQP' in cvxpy.installed_solvers()"
+export ROTE_DATA_ROOT="$HOME/data/FI-2010"     # MANDATORY, see below
+uv venv .venv && uv pip install -r pyproject.toml --extra dev
 ```
 
-- `uv run --no-sync` reuses `.venv` without re-resolving; plain `uv run` also works.
-- **There is no build backend.** `uv pip install -e .` falls back to setuptools and drops a stray `src/rote.egg-info/`. Plain `pip` cannot read `pyproject.toml` as requirements (README lists the deps explicitly).
-- Verified here: Python 3.12.13, numpy 2.5.3, pandas 3.0.6, cvxpy 1.9.3 (solvers `CLARABEL SCS SCIPY HIGHS OSQP`), ruff 0.16.10, pytest 9.1.1, streamlit 1.65.0. `scipy`, `seaborn`, `statsmodels` are declared but imported nowhere.
-- `uv.lock` is deliberately **not** gitignored — it is the reproducibility record if it is ever generated. `.env*` is ignored and must stay ignored.
+- **`ROTE_DATA_ROOT` must be exported.** `configs/experiment.yaml` ships `dataset.root: null`
+  and the fallbacks `data/raw/FI-2010` / `data/FI-2010` do not exist. Without it two tests
+  fail *hard* rather than skipping: `tests/test_e2e.py::test_end_to_end_pipeline` and
+  `tests/test_run_experiment.py::test_calibrate_command` (the suite is not hermetic).
+- There is **no build backend**. Never `uv pip install -e .` / `pip install .` — it silently
+  falls back to setuptools and drops a `src/rote.egg-info/`. Deps are declared in
+  `pyproject.toml` and installed as a requirements file.
+- `uv run --no-sync` reuses `.venv` without re-resolving. Python 3.12, cvxpy solvers available:
+  CLARABEL, HIGHS, OSQP, SCIPY, SCS.
+- **Run everything from the repo root.** Output paths (`results/`, `data/`, `report/`) are CWD-relative.
 
-## Commands (run from the repo root)
+## Commands
 
 ```bash
-uv run --no-sync ruff check .              # NOT green: 4 F401 (2 unused imports in stubs, 2 in tests/test_basic.py)
-uv run --no-sync ruff format --check .     # NOT green: 7 files (stubs use single quotes; ruff format wants double)
-uv run --no-sync pytest                    # NOT green: 2 failures — see "import path is broken" below
-uv run --no-sync pytest tests/test_basic.py::test_contracts_import   # single test
-uv run --no-sync pytest -m T1              # marker subset; --strict-markers is on
-uv run --no-sync streamlit run app.py      # 5-line placeholder page
+uv run --no-sync ruff check . && uv run --no-sync ruff format --check . && uv run --no-sync pytest
+uv run --no-sync pytest tests/test_models.py::test_name      # one test
+uv run --no-sync pytest -m T8                                 # one correctness standard
+uv run --no-sync python run_experiment.py audit               # rewrites data/README.md
+uv run --no-sync python run_experiment.py freeze-splits       # rewrites configs/splits.yaml
+uv run --no-sync python run_experiment.py calibrate
+uv run --no-sync python run_experiment.py figures
+uv run --no-sync python run_experiment.py check-formulation  # just pytest tests/test_optimizer.py -v
+uv run --no-sync python -m src.reports.generate_report
+uv run --no-sync streamlit run app.py
 ```
 
-- **There is no `run_experiment.py`** (deleted with the old pipeline). Any command in README that names it is dead until the CLI is rebuilt.
-- **Import path is broken right now.** `pyproject.toml` has `pythonpath = ["src"]` (the old convention: `from data import loader`, never `src.data`), but every new stub and test imports with the `src.` prefix (`from src.utils.contracts import ...`). Result: `pytest` fails with `ModuleNotFoundError: No module named 'src'`. Pick one convention; `pythonpath = ["."]` matches the code as written. Do not "fix" it by rewriting imports to top-level while `src/__init__.py` and the `src.` prefix exist.
-- **Markers are declared T1–T14, A1, A4, slow** and `--strict-markers` rejects anything else. `PROPOSAL.md` section 9 now also defines **T15–T17** (shadow prices, MIP structure, AHP CR) — register them in `pyproject.toml` before writing a test with those markers. No test currently uses `slow`.
-- When lint/test are green again, verify with the three commands above in that order (lint → format → test). There is no typechecker.
+CLI notes:
 
-## Conventions that differ from defaults
+- `full` runs the audit, calibration, figures, and report pipeline. Add `--test --confirm` to
+  select the held-out day 8 report; the confirmation flag is required for that mode.
+- `audit` only overwrites `data/README.md` on success; a failed audit preserves the last good
+  report (`tests/test_audit.py::test_failed_audit_preserves_existing_report`).
+- `freeze-splits` regenerates `configs/splits.yaml`, which is covered by the only tag in the
+  repo (`splits-frozen`). Don't casually re-run it.
+- `calibrate` prints η₀ and persists the estimates in `results/tables/calibration.json`.
+- `audit` / `calibrate` / `figures` parse the full 607 MB train file (~3 s each); they are the
+  slow part of the suite. The `slow` marker is declared but unused, so `-m "not slow"` is a no-op.
 
-- **Contracts are the architecture.** `src/utils/contracts.py` defines `Order`, `Schedule`, `CostReport`; every model must return a `Schedule` and every schedule must go through the one `simulate()` (`PROPOSAL.md` section 7.2). A model that computes its own cost/shortfall is a spec violation — the comparison is then between two simulators, not two policies.
-- Model modules are named after the roadmap menu: `m1_ac.py` (Almgren–Chriss), `m2_lp.py` (LOB LP + shadow prices), `m3_mip.py` (fixed-charge IP), `m4_ahp.py` (AHP). The core ROTE-Static QP is *M1 + M2 linked*, not a fifth menu item.
-- Ruff: line-length 100, `target-version py311`, select `E,F,I,UP,B,SIM`, `*.md` excluded. No quote-style configured → format normalises to double quotes.
-- Config is the source of truth for every experiment number: `configs/experiment.yaml` (risk grid on **`omega`**, never absolute `lambda` — an absolute grid is off by orders of magnitude and silently returns TWAP; `theta`, `rho`, `pi`, resilience `phi`, bootstrap), `configs/splits.yaml` (frozen day blocks 1–5/6–7/8–9, reserve 10; tag `splits-frozen` exists). Never hardcode a grid or tolerance in code.
-- `config.load()` anchors on `REPO_ROOT` (`src/config.py`), so it works from any CWD; anything else you add should do the same or be run from the repo root.
-- **Prose convention:** section references are written `PROPOSAL.md section N`, never abbreviated `§N`. R/T/G/A/E/H/S/Q identifiers (risks, tests, gates, audits, experiments, hypotheses, assumptions, questions) are fixed — renumbering them breaks cross-references in `pyproject.toml` and in the tests themselves. No comments in code unless explicitly asked.
-- **Spec rules that are easy to break and cheap to violate** (none currently enforced by a test): the sweep is priced at arrival state and net of `F_T + fill_T` — reading a horizon-end mid or worst ask is look-ahead (`PROPOSAL.md` section 9 T8); there is **no** completion constraint — `u = y_{T+1}` is a definition, so there is no completion dual; the UI is Tier 1 with two guaranteed selectable models (section 1.3).
-- **Matched risk** means equal *realised* risk, never equal `lambda`; the acceptance rule is `PROPOSAL.md` section 1.5. No optimisation code ahead of the audit gates (section 4.1 / week-1 gate G1).
-- **Roadmap notation vs spec notation:** roadmap's participation factor `φ` is `rho` here; `phi`/`varphi` is resilience in the simulator. Don't mix them.
+## Two import roots
 
-## Git discipline
+`pyproject.toml` sets `pythonpath = [".", "src"]`, so under pytest *both* styles resolve:
 
-- Do **not** `git add`/`commit`/`tag` unless explicitly asked; report working-tree state instead. Tags today: `splits-frozen` only (on `1397870`); `main` only, no dev branch. Planned by the spec: `config-frozen` before the single test run (`PROPOSAL.md` section 10.5), then `v0.1-mvp` / `v1.0` at the release gates. After `config-frozen`, any constant change must be labelled *post hoc* in `docs/decision_log.md`.
-- Commit style when asked: `type: summary`, types `feat fix data docs test exp chore`. Data files are never committed: `.gitignore` `/data/raw/*` is the only guard (`data/` is empty right now — `data/raw/` was removed in the migration; if a `data/raw/FI-2010` symlink is recreated, note `git check-ignore` *through* a symlink fails "beyond a symbolic link" — check the link itself).
+- `src.*` — `app.py`, `src/models/`, `src/reports/`, `src/sim/`, `src/stats/`, `src/utils/`
+- bare top-level — `data`, `config`, `cost`, `optimize` — used by `run_experiment.py`,
+  `src/data/`, `tests/test_optimizer.py`, `tests/test_units.py`, `tests/test_walk_book.py`
+
+`run_experiment.py` inserts only `src/` at runtime. So a module reachable from the CLI must use
+bare imports, and `app.py` / `src/reports/` need the repo root. The tree is already mixed
+(`src/cost/quadratic.py` uses `from cost.walk_book import ...`, `src/impact/impact.py` uses
+`from src.cost.walk_book import ...`) — match whichever form the target's own siblings use.
+
+## Duplicated modules — pick deliberately
+
+| Need | Use | Not |
+|---|---|---|
+| Loader for CLI/audit | `src/data/loader.py` — input validation, config-aware `dataset.file`, `period_log_returns`, `sigma_min_floor` | `src/loader/loader.py` — drops validation, ignores `dataset.file` |
+| Loader for UI/reports | `src/loader/loader.py` — adds `load_day`, `load_test_lob` | |
+| η₀ calibration | `src/cost/quadratic.py` → `float` (what `run_experiment.py` uses) | `src/impact/impact.py` → `dict` (quad/lin/sqrt + R²), the one `src/impact/__init__.py` re-exports |
+| Simulator | `src/sim/simulate.py::simulate` → `CostReport` | — |
+
+`src/utils/` remains a namespace package; obsolete duplicate implementations were removed.
+
+## Dataset invariants
+
+- Files are `(149, N)` = 144 features + 5 labels, transposed. **Labels are forbidden**
+  (`dataset.labels: forbidden`) — the loader slices `rows[:144]`. Never widen that.
+- Scale: `k_decpre = 6` globally. `price_euros = stored × 100`, `vol_shares = stored × 10^6`.
+  LOB = first 40 feature columns, 10 levels × interleaved (ask_p, ask_v, bid_p, bid_v).
+- The train file is **stock-major**: 5 contiguous blocks spanning days 1–7.
+  `segment_boundaries` returns **edges** `[0, …, N]` (`len(edges) - 1` = stock count), never raw
+  jump indices. Passing jumps silently drops the first stock and the last segment.
+  Locked by `tests/test_loader.py::test_segment_boundaries_are_edges_not_jumps`.
+- **`lob["S"]` is the FULL spread `Pa1 - Pb1`, never the half-spread** (pooled mean 16.70 bps
+  full, 8.35 half). `walk_book_buy` prices the half-spread against the *period-t* mid
+  (`p1 - mid_t`). T12's `components == Spend - Q·M0` identity is satisfied by any split, so it
+  cannot catch a mis-split — compare `half_spread_bps` against the raw arrays instead.
+- `sigma_min_floor` = 10th percentile of **|returns|**, so the volatility floor is never negative.
+- Days 1–7 are carved out of the train file assuming **uniform day lengths** (no timestamps, no
+  `train_6` exists). Days 8/9/10 map to `Test*CF_{day-1}.txt`. `configs/splits.yaml` freezes
+  calibration = 1–5, validation = 6–7, test = 8–9, reserve = 10.
+- `load_day` re-parses the whole file on every call (no caching) and `app.py` calls it inside
+  the Streamlit rerun loop. Don't call it per-widget.
+- `.gitignore`'s `/data/raw/*` is the **only** guard against committing the dataset. Verify with
+  `git check-ignore -v data/raw/<file>` before any `git add`.
+
+## Simulation rules
+
+- The terminal sweep must be priced at the **last snapshot inside the horizon** (index `T-1`),
+  never at index `T`, and no snapshot after the horizon may be read. Behavioral tests assert this.
+- The sweep deducts `F_T + fill_T` — no resilience recovery on period T's own fill. `phi = 1`
+  is naive replay **inside the horizon only**, not end to end.
+- No completion constraint: `u = y_{T+1}` is a decision variable chosen by the program, never
+  forced into the final period.
+
+## Testing quirks
+
+- `--strict-markers` is on, and `T1`–`T17` plus `A1`/`A4` are all declared in `pyproject.toml`.
+  `T15`–`T17` are declared but **carried by no test** (`pytest -m T15` collects 0 tests).
+- Correctness markers point to behavioral assertions; cite the asserting test, never the marker
+  alone.
+- Real assertions: `test_loader.py`, `test_audit.py`, `test_walk_book.py` (T10), `test_units.py`
+  (T13), `test_models.py`, `test_baselines.py`, `test_visualizations.py`, `test_optimizer.py`,
+  `test_figures.py`, `test_config.py`, `test_splits.py`, `test_run_experiment.py`, `test_layers.py`,
+  `test_e2e.py`.
+- `tests/conftest.py` supplies `synthetic_lob` (hand-built 300×10 book, no dataset) and
+  `tmp_config` (writes into `tmp_path`). Model/visualization tests need only `synthetic_lob`;
+  the loader/audit/CLI tests read the real dataset.
+- `tests/test_layers.py` AST-scans `src/*` and fails if anything imports `evaluation`.
+  `src/evaluation/` does not exist yet — keep the layer rule when it lands.
+
+## Stale tracked artifacts
+
+- `data/README.md` and the six `results/figures/fig*.png` were generated from nine **synthetic**
+  files; the report claims "9 files (0 test)" and A6 `WARN`. The real release gives 4 files and
+  A6 `PASS` (451/178/261). Re-running `audit` is a **correction, not a regression** — it is a
+  deliberate, separate act; review `git diff data/README.md` line by line.
+- `README.md` section 2's tree omits `src/config.py`, `src/data/`, `src/cost/`, and
+  `src/optimize/`. `PROPOSAL.md` section 13.1 lists
+  `src/evaluation/`, `src/baselines/` and `notebooks/`, none of which exist.
+- Generated analysis and planning registers are not retained in `docs/`.
+
+## Config as source of truth
+
+Every experiment number lives in `configs/experiment.yaml` — no literals for order size, horizon,
+caps, λ, φ or period lengths inside modules. `src/config.py::load` requires the `dataset`,
+`audit` and `period` sections and injects `_sha256` / `_proposal_sha256`.
+
+- The AC/ROTE-Static grid is `omega_grid`, **not** an absolute `lambda_grid`.
+  `kappa² = lambda~·sigma~²/(eta~0·theta) = 2(cosh ω − 1)` is the single quantity that sets the
+  schedule; `eta~0` scales as 1/M₀ and `sigma~²` as 1/M₀², so a fixed λ means a different urgency
+  per stock and collapses every model to TWAP (decision log, 2026-10-05).
+- The section 5.4 program is badly conditioned: at dimensionless scale (`psi = 0.5`) OSQP
+  defaults return a solution up to 75 shares off TWAP at `lambda = 0`, where T1 requires TWAP. At
+  the raw scale `psi = 100.0` that `tests/test_optimizer.py` uses, defaults are fine — so a green
+  test does not prove the program is safe. Do not loosen solver tolerances to raise the solve rate.
+- bps ×10^4 has exactly one home: `src/cost/units.py`.
+
+## Conventions
+
+- Ruff: line-length 100, `target-version = "py311"`, `select = ["E","F","I","UP","B","SIM"]`,
+  `extend-exclude = ["*.md"]`. New modules start with `from __future__ import annotations`.
+- Section references in prose: `PROPOSAL.md section N`, never abbreviated. Namespaces
+  (R/T/G/A/E/H/S/Q) are fixed.
+- Model contract (README section 1): `load_day` → `Order` → `model.solve` → `Schedule` →
+  `simulate` → `CostReport`. `Order`/`Schedule`/`CostReport` are frozen dataclasses in
+  `src/utils/contracts.py`; `sum(Schedule.shares) == Q` is the invariant.
+- No comments unless explicitly asked.
+- Do not `git add` / commit unless asked. Commit style is `type: summary` with
+  `feat fix data docs test exp chore`; experiment runs are separate from source commits.

@@ -15,7 +15,7 @@ class Order:
 
 @dataclass(frozen=True)
 class Schedule:
-    shares: np.ndarray  # shares per period/slice
+    shares: np.ndarray
 
     def __post_init__(self):
         object.__setattr__(self, "shares", np.asarray(self.shares, dtype=float))

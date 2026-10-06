@@ -204,13 +204,15 @@ def plot_m1_frontier(
         raise ValueError("Invalid order size or horizon")
     _validate_book_keys(book, ("M", "Pa", "Va", "Da"))
 
-    if lambda_grid is None:
-        lambda_grid = [0.0, 1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2]
-
     Q = float(order.size)
     T = int(order.horizon)
     eta = 0.1
     sigma = 0.015
+    parameter_name = "lambda"
+    if lambda_grid is None:
+        omega_grid = [0.0, 0.05, 0.1, 0.2, 0.4, 0.8, 1.6]
+        lambda_grid = [2.0 * eta * (np.cosh(omega) - 1.0) / (sigma**2) for omega in omega_grid]
+        parameter_name = "omega"
 
     records = []
     schedules = {}
@@ -222,6 +224,7 @@ def plot_m1_frontier(
         records.append(
             {
                 "lambda": lam,
+                "omega": np.arccosh(1.0 + lam * sigma**2 / (2.0 * eta)),
                 "Shortfall (bps)": rep.shortfall_bps,
                 "Risk (std)": rep.std,
                 "Trades": rep.trades,
@@ -260,7 +263,7 @@ def plot_m1_frontier(
         color=COLORS["ask"],
         s=120,
         zorder=5,
-        label=r"Max Risk-Averse ($\lambda=10^{-2}$)",
+        label=r"Max Risk-Averse",
     )
 
     ax1.set_xlabel("Timing Risk (Standard Deviation)", fontsize=10, fontweight="bold")
@@ -277,7 +280,15 @@ def plot_m1_frontier(
         ax2.plot(
             t_steps,
             schedules[lam],
-            label=rf"$\lambda$={lam:.1e}" if lam > 0 else "TWAP",
+            label=(
+                rf"$\lambda$={lam:.1e}"
+                if parameter_name == "lambda" and lam > 0
+                else (
+                    rf"$\omega$={np.arccosh(1.0 + lam * sigma**2 / (2.0 * eta)):.2g}"
+                    if lam > 0
+                    else "TWAP"
+                )
+            ),
             color=colors_traj[i],
             lw=1.8,
         )

@@ -110,9 +110,7 @@ with tabs[2]:
                 "Execution Horizon (T periods of 20 rows)", min_value=5, max_value=60, value=20
             )
         with col2:
-            lam = st.slider(
-                "Risk Aversion (lambda)", min_value=0.0, max_value=0.5, value=0.05, step=0.01
-            )
+            omega = st.slider("Urgency (omega)", min_value=0.0, max_value=1.6, value=0.4, step=0.05)
             rho = st.slider("Participation Cap (rho)", min_value=0.05, max_value=1.0, value=0.25)
 
         order = Order(side="buy", size=Q, horizon=T, params={})
@@ -125,13 +123,15 @@ with tabs[2]:
         else:
             book = {k: v[:T_rows:step] for k, v in lob.items()}
             params = {
-                "lambda_imp": lam,
+                "lambda_imp": 2.0 * 0.1 * (np.cosh(omega) - 1.0) / (0.015**2),
                 "rho": rho,
                 "eta": 0.1,
                 "sigma": 0.015,
                 "sigma2": np.ones(T) * 0.015,
                 "c_f": 5.0,
                 "L_min": 50.0,
+                "phi": 0.5,
+                "pi": 0.005,
             }
 
             if st.button("Run Model"):
@@ -220,7 +220,7 @@ with tabs[3]:
                     results = []
                     schedules_dict = {}
                     for m_name, sched in models.items():
-                        rep = simulate(sched, book_c)
+                        rep = simulate(sched, book_c, params_c)
                         results.append(
                             {
                                 "Model": m_name,

@@ -9,7 +9,7 @@
 | **Type** | Financial Engineering × Operations Research |
 | **Approach and schedule** | **`ROADMAP.md` governs them** — the model menu (M1–M4), the interface contract, the eight-week plan, the four-owner split, the UI panel flow, the tech stack and the compression rules |
 | **Status** | **Final** — the authoritative specification of *what* is built and *how it is judged*. Its hypotheses, primary tests and acceptance rule (section 1.5) are fixed and are not revised on the basis of test results |
-| **Progress (2026-10-05)** | **Mid-migration to the ROADMAP architecture.** Review 1 passed, sign-offs obtained. The previous pipeline (`src/data`, `src/cost`, `src/optimize`, `src/simulator`, `run_experiment.py`) was removed in favour of the ROADMAP module layout (`src/loader`, `src/impact`, `src/models/m1_ac…m4_ahp`, `src/sim`, `src/stats`, `src/benchmarks`, `src/utils/contracts.py`), which exists today as skeleton stubs. The Phase-1 audit facts and frozen splits are recorded in `configs/experiment.yaml` and `configs/splits.yaml` and remain valid; the audit report and figures are **not** on disk and must be regenerated. Detail in section 11.5 |
+| **Progress (2026-10-06)** | **Integrated research implementation.** The loader, audit, statistics, impact, four models, benchmarks, simulator, Streamlit UI, report generator, and CLI are implemented and covered by targeted tests. The simulator uses only snapshots inside the requested horizon, and calibration outputs are persisted under `results/tables/`. Dataset-dependent commands require `ROTE_DATA_ROOT`. |
 | **Guideline compliance** | FE + OR course guidelines: public dataset (FI-2010); Python tool; UI with dataset loading, statistics on demand and ≥2 user-selectable optimisation models (section 1.3); ≥2 distinct financial analyses from a menu (section 1.3); Tools & Technologies (section 2.6); First Review Alignment (section 2.4); course-topic approval obtained (section 2.3) |
 | **Evidence tags** | **[S]** stated in the dataset paper (Ntakaris et al., 2018); **[C]** confirmed by the Phase-1 audit run on the real dataset; **[K]** a design convention, not a fact |
 
@@ -27,7 +27,7 @@
 
 A trader must liquidate (or buy) a large parent order. Trading fast pays market impact because the order walks the book. Trading slowly leaves price risk. ROTE is a Streamlit tool on FI-2010 that loads and cleans LOB data, shows liquidity statistics on demand, runs optimisation models that output execution schedules, benchmarks them, and helps the user choose a strategy for their risk preference.
 
-**One build, two grading lenses** (ROADMAP.md §1):
+**One build, two grading lenses** (ROADMAP.md section 1):
 
 | Lens | What the instructors look for | ROTE's answer |
 |---|---|---|
@@ -88,9 +88,9 @@ The optimiser is the instrument used to measure this, and the model menu of sect
 A user interface is **mandatory under both guidelines** (FE: run ≥2 distinct financial analyses from a menu; OR: load the dataset, generate statistics on demand, and perform ≥2 user-selectable optimisation models), so it is a **Tier 1 deliverable**, not an optional extra. The same capability is provided twice — a Streamlit web app (`app.py`) and a Jupyter/Colab notebook (`notebooks/rote_analysis.ipynb`) with widgets — and both are thin wrappers over the existing `src/` modules (no logic duplication). The UI follows the roadmap's five-panel flow **Data → Statistics → Optimiser → Compare → Decision**:
 
 1. **Dataset Loader.** Upload or select the FI-2010 file (path defaulting to `$ROTE_DATA_ROOT`); display dataset dimensions (rows × columns), detected stocks and days (A2), the recovered normalisation/scale (A1), and the data-quality/audit status (A0–A4) read from the Phase-1 audit report.
-2. **Descriptive Statistics (on demand).** Spread, bid/ask depth, mid-price, order-book imbalance (OBI), volatility and liquidity statistics — mean, std, min, max and depth percentiles — plus the relevant plots on demand, all computed by the audit/feature pipeline. Shown as *findings*, not raw charts (roadmap §6).
+2. **Descriptive Statistics (on demand).** Spread, bid/ask depth, mid-price, order-book imbalance (OBI), volatility and liquidity statistics — mean, std, min, max and depth percentiles — plus the relevant plots on demand, all computed by the audit/feature pipeline. Shown as *findings*, not raw charts (roadmap section 6).
 3. **Optimiser / Analysis Menu.** The user selects the optimisation model and its parameters ($\theta$ or $Q$, $T$, $\lambda$, $\rho$), runs it on a chosen window, and sees the optimal execution schedule together with expected cost, realised risk, implementation shortfall and completion share. **All four roadmap models are selectable, and both Tier-1 models are guaranteed:**
-   - **M1 — Almgren–Chriss mean–variance schedule** (roadmap §3): closed form, risk aversion $\lambda$; the state-blind reference, same order/horizon/risk framework (section 6, rungs 3/3b).
+   - **M1 — Almgren–Chriss mean–variance schedule** (roadmap section 3): closed form, risk aversion $\lambda$; the state-blind reference, same order/horizon/risk framework (section 6, rungs 3/3b).
    - **M2 — LOB-aware slice allocation**: LP with depth and participation limits, shadow prices reported (section 6, rung 4b).
    - **ROTE-Static** — M1 and M2 linked: arrival-state convex QP with quadratic depth-scaled impact, risk penalty, participation constraints and terminal sweep (section 6.2, rung 4b). This is Model 1 of the OR guideline.
    - **M3 — Fixed-charge child-order scheduling** (integer program) and **M4 — AHP strategy selection** (sections 6.5–6.6), the roadmap's full OR coverage.
@@ -178,11 +178,11 @@ This proposal maps directly to the first review requirements:
 
 ### 2.5 Review-1 feedback
 
-Review-1 feedback and its disposition live in `docs/feedback_log.md` (roadmap §8), one row per comment: what was asked, what changed, in which commit. The absence of a row is itself a finding, and section 16 requires the log to be complete before the final presentation.
+Review-1 feedback and its disposition live in `docs/feedback_log.md` (roadmap section 8), one row per comment: what was asked, what changed, in which commit. The absence of a row is itself a finding, and section 16 requires the log to be complete before the final presentation.
 
 ### 2.6 Tools and Technologies
 
-The roadmap's stack (§10) is the committed one; the column on the right records the specific role in this project.
+The roadmap's stack (section 10) is the committed one; the column on the right records the specific role in this project.
 
 | Category | Tool/Library | Purpose |
 |---|---|---|
@@ -195,10 +195,10 @@ The roadmap's stack (§10) is the committed one; the column on the right records
 | Interactive UI | Streamlit (`app.py`) | Web dashboard: Data → Statistics → Optimiser → Compare → Decision |
 | Interactive notebooks | Jupyter/Colab (`notebooks/rote_analysis.ipynb`) | Alternative UI with widgets for easy demonstration |
 | Statistics | in-house moving-block bootstrap, statsmodels (optional) | Paired CIs, Holm family, MDE (section 10.3) |
-| Machine learning (stretch) | scikit-learn; LightGBM or PyTorch only in §15 | Drift-term ablation and the stretch model; labels never read in Tier 1 |
+| Machine learning (stretch) | scikit-learn; LightGBM or PyTorch only in section 15 | Drift-term ablation and the stretch model; labels never read in Tier 1 |
 | Testing | pytest | Unit/integration testing, T1–T17 correctness gates (section 9) |
 | Environment & CI | uv (dependency management), pytest as CI-lite, GitHub | Reproducible environments; branch-per-feature with one reviewer |
-| Workflow | git, `requirements.txt`-equivalent lock via `uv` | Pinned environment for the demo machine (roadmap §9) |
+| Workflow | git, `requirements.txt`-equivalent lock via `uv` | Pinned environment for the demo machine (roadmap section 9) |
 
 Two roadmap stack entries are explicitly **not** used: `seaborn` (declared but never imported) and any volume-profile/`VWAP` construction — FI-2010 rows lack timestamps and volume profiles, so a historical volume curve cannot be built, and the report says so.
 
@@ -253,7 +253,7 @@ Explicitly **not** the claim: "a neural network was applied to FI-2010". The opt
 | $\pi$ | Sweep penalty as a fraction of price (default $0.005=50$ bps) |
 | $\theta=Q/\bar D$ | Participation level of the parent order; $\bar D$ = per-stock calibration-set median ask depth (section 10.1) |
 | $\lambda$ | Risk aversion. Two forms, related by $\lambda_{\text{imp}}=\lambda_{\text{raw}}QM_0$ (or $=\lambda_{\text{raw}}QM_0/10^4$ if the common $10^4$ is carried inside the tildes instead of suppressed, section 5.3): $\lambda_{\text{raw}}$ is the coefficient of section 6.2 as written, in units of **one per unit of currency**, $1/(\text{price}\cdot\text{shares})$ — that is what makes $\lambda\sigma^2y^2$ a currency sum, and the same unit is what makes $\lambda_{\text{imp}}$ dimensionless. Labelling it $1/\text{price}$ is the error of one share-count, since $y^2$ is then not $y$; from section 5.3 on, $\lambda$ means the dimensionless $\lambda_{\text{imp}}$, and only the ratio $\lambda\tilde\sigma^2/(\tilde\eta_0\theta)$ affects the solution |
-| $\rho$ | Participation cap: the per-period ceiling $x_t\le\rho D^{a,\text{net}}_t$ (section 6.2), and the simulator's per-period fill ceiling. **Notation note:** ROADMAP.md §3 writes this limit as $\phi\cdot\text{volume}_t$; here $\phi$ is reserved for resilience (below) and the participation factor is always $\rho$ |
+| $\rho$ | Participation cap: the per-period ceiling $x_t\le\rho D^{a,\text{net}}_t$ (section 6.2), and the simulator's per-period fill ceiling. **Notation note:** ROADMAP.md section 3 writes this limit as $\phi\cdot\text{volume}_t$; here $\phi$ is reserved for resilience (below) and the participation factor is always $\rho$ |
 | $\varphi$ | Simulator resilience: the fraction of the footprint recovered per period (section 8.2) |
 | $\tilde D_t$ | Trailing median of **gross** ask depth (causal), used only by the Depth-Proportional rung (section 7) |
 | $c$ | The constant-impact slope fitted on the calibration data as H2's comparator (sections 1.4, 10.4 E0) |
@@ -267,7 +267,7 @@ Explicitly **not** the claim: "a neural network was applied to FI-2010". The opt
 
 ### 4.1 Phase-1 data audit (the first deliverable; a gate, not an assumption)
 
-**No optimisation code is written before A0–A2 are answered.** The walk-the-book cost is only meaningful if prices and volumes are on real scales. The open-access FI-2010 release is *normalized in order to prevent reconstruction of the original Nasdaq data* [S], so whether a mid-price level is recoverable is the first thing to establish. An unexamined file makes the calibration of section 5 regress on quantities with arbitrary units, and every downstream number inherits the distortion. ROADMAP.md §2 states the same risk from the other side ("if not recoverable, work in relative units and say so on a slide"); the decision rule below was run and its answer recorded before that fallback became necessary.
+**No optimisation code is written before A0–A2 are answered.** The walk-the-book cost is only meaningful if prices and volumes are on real scales. The open-access FI-2010 release is *normalized in order to prevent reconstruction of the original Nasdaq data* [S], so whether a mid-price level is recoverable is the first thing to establish. An unexamined file makes the calibration of section 5 regress on quantities with arbitrary units, and every downstream number inherits the distortion. ROADMAP.md section 2 states the same risk from the other side ("if not recoverable, work in relative units and say so on a slide"); the decision rule below was run and its answer recorded before that fallback became necessary.
 
 **What the dataset paper and its distribution say, and how sure we are.** Every row is a *documented expectation for the audit to confirm*, never an assumption to build on. [C] marks what the Phase-1 audit run on the real dataset confirmed.
 
@@ -311,7 +311,7 @@ Explicitly **not** the claim: "a neural network was applied to FI-2010". The opt
 1. **Work with the decimal-precision files**, with the exponent recovered by the tick-grid test. No un-normalized variant is distributed, so this is the only in-family route.
 2. **Do not attempt z-score or min–max.** Listed as an explicit decision so the option is closed.
 3. **Fall back** to a raw-price LOB dataset such as the free LOBSTER sample files, after confirming in Phase 1 that suitable sample files exist. Samples are typically one trading day for a few tickers at message-level (not 10-event-block) rows, so the split, $m$, $N_{\text{eff}}$ and the narrative would all be rebuilt — the last resort.
-4. **If no route recovers a price level**, work in **relative units** (ticks, bps of tick, normalised depth) and say so on a slide — ROADMAP.md §2's own fallback. Every result is then dimensionless by construction; only the euro column of A8 is lost.
+4. **If no route recovers a price level**, work in **relative units** (ticks, bps of tick, normalised depth) and say so on a slide — ROADMAP.md section 2's own fallback. Every result is then dimensionless by construction; only the euro column of A8 is lost.
 
 **Sizing $T\cdot m$.** 394,337 rows over ten days is about 39k rows per day for all five stocks, so test days 8–9 hold about 79k rows. At $T\cdot m=400$ that gives about 197 non-overlapping windows before burn-in and boundary losses, so $N_{\text{eff}}\ge100$ holds with margin. This must hold *together with* the feasibility bound of section 10.1, $T\gtrsim\theta/f(\varphi)$; at the default $\rho=0.25$ and $\varphi=0.5$ that is $T\ge5\theta$, so $T=20$ with $m=20$ covers $\theta\le4$. If the audit finds materially fewer rows than assumed, the trade-off is decided explicitly and the binding constraint recorded (R15).
 
@@ -349,7 +349,7 @@ Any larger exponent also passes, so keep the smallest — as a **lower bound**, 
 
 ### 4.3 Splits
 
-Chronological, never random, and by whole-day blocks. ROADMAP.md §2 proposes "calibrate days 1 to 7, test days 8 to 10"; this protocol is that split refined into three parts so that a validation set exists for choosing $\lambda$ without touching test:
+Chronological, never random, and by whole-day blocks. ROADMAP.md section 2 proposes "calibrate days 1 to 7, test days 8 to 10"; this protocol is that split refined into three parts so that a validation set exists for choosing $\lambda$ without touching test:
 
 | Split | Days (of the day-10 release) | Share | Used for |
 |---|---|---|---|
@@ -380,7 +380,7 @@ Cost versus mid is $C_t(x)-xM_t=\tfrac12 S_t x+\big(C_t(x)-xP^a_t\big)$: half-sp
 
 $$\text{cost}_t(x)\approx \tfrac12 S_t\,x+\eta_t\,x^2,\qquad \eta_t=\eta_0/D^a_t .$$
 
-Three candidate families are fitted on the calibration days and compared out of sample on validation, as ROADMAP.md §3 requires ("impact model fitted from the book (linear vs square-root)"):
+Three candidate families are fitted on the calibration days and compared out of sample on validation, as ROADMAP.md section 3 requires ("impact model fitted from the book (linear vs square-root)"):
 
 | Family | Form | Role |
 |---|---|---|
@@ -390,7 +390,7 @@ Three candidate families are fitted on the calibration days and compared out of 
 
 The choice among them is made **on validation, before any test row is read**, and is recorded in the frozen config; H2 then tests the chosen depth-scaled model against the constant model on test (E0). Whichever family wins, the *delivery* is unaffected: M1 keeps its closed form, M2's LP and the ROTE-Static QP keep the quadratic term, and the square-root variant is reported as a robustness column.
 
-**Calibrating $\eta_0$.** Per stock on the calibration split: sample snapshots, evaluate the exact walk premium $w_t(x)$ at probe sizes $x=sD^a_t$ for $s$ on a pre-registered grid up to $\rho$, and regress $w_t(x)$ on the model's own regressor $x^2/D^a_t$ through the origin, pooling every sampled snapshot of that stock; the slope **is** $\eta_0$. (Regressing on $x/D^a_t$ instead would fit a *linear-in-participation* form and return $\eta_0\bar D$, not $\eta_0$ — that is a different model and the specification error is not detectable from $R^2$.) Report $R^2$, the residual pattern, and the fraction of the premium that is exactly zero (small orders inside the top level pay none; the quadratic overstates there). Confidence intervals and cross-stock pooling follow ROADMAP.md §9 ("pool across stocks; show confidence intervals; compare fits").
+**Calibrating $\eta_0$.** Per stock on the calibration split: sample snapshots, evaluate the exact walk premium $w_t(x)$ at probe sizes $x=sD^a_t$ for $s$ on a pre-registered grid up to $\rho$, and regress $w_t(x)$ on the model's own regressor $x^2/D^a_t$ through the origin, pooling every sampled snapshot of that stock; the slope **is** $\eta_0$. (Regressing on $x/D^a_t$ instead would fit a *linear-in-participation* form and return $\eta_0\bar D$, not $\eta_0$ — that is a different model and the specification error is not detectable from $R^2$.) Report $R^2$, the residual pattern, and the fraction of the premium that is exactly zero (small orders inside the top level pay none; the quadratic overstates there). Confidence intervals and cross-stock pooling follow ROADMAP.md section 9 ("pool across stocks; show confidence intervals; compare fits").
 
 **Exact-book alternative (reported as a robustness check, not a competing method).** Replace $\eta_tx^2$ by per-level variables $q_{t,i}\in[0,v^a_{t,i}]$ with linear cost $\sum_i p^a_{t,i}q_{t,i}$; the cost is then exact and the program is quadratic only through the risk term. Ascending prices make the optimizer fill cheaper levels first, so no integer logic is needed — and this is precisely M2's decision space (section 6.4).
 
@@ -416,7 +416,7 @@ $$\mathrm{Var}=\sum_{s=2}^{T}\sigma_s^2\,y_s^2,\qquad \text{and expected timing 
 
 ## 6. Models (the menu)
 
-The four roadmap models (ROADMAP.md §3) plus the linked core program. Every model takes the same inputs and returns the same `Schedule`, so every schedule goes through the same `simulate()` — that is what makes the Compare tab possible (section 7.2).
+The four roadmap models (ROADMAP.md section 3) plus the linked core program. Every model takes the same inputs and returns the same `Schedule`, so every schedule goes through the same `simulate()` — that is what makes the Compare tab possible (section 7.2).
 
 | ID | Model | Technique | Where it lives | Question answered |
 |---|---|---|---|---|
@@ -428,7 +428,7 @@ The four roadmap models (ROADMAP.md §3) plus the linked core program. Every mod
 
 ### 6.1 M1 — Almgren–Chriss mean–variance schedule
 
-Roadmap §3's formulation, in its own symbols: choose holdings $x_0=X,\dots,x_N=0$, trades $n_k=x_{k-1}-x_k$, and minimise
+Roadmap section 3's formulation, in its own symbols: choose holdings $x_0=X,\dots,x_N=0$, trades $n_k=x_{k-1}-x_k$, and minimise
 
 $$\sum_k\Big[\gamma\, n_k x_k+\varepsilon\, n_k+(\eta/\tau)\,n_k^2\Big]+\lambda\sigma^2\tau\sum_k x_k^2,$$
 
@@ -444,7 +444,7 @@ $$\min_{x}\ \sum_{t=1}^{T}\Big(\tfrac12 S_t x_t+\eta_t x_t^2+\bar\alpha_t x_t\Bi
 
 subject to $y_1=Q$, $y_{t+1}=y_t-x_t$, $u=y_{T+1}\ge0$, $0\le x_t\le\rho\,D^{a,\text{net}}_t$.
 
-Adding the risk term to M2's depth constraints is exactly what ROADMAP.md §3 means by "add the M1 variance term to make it a convex QP, which links M1 and M2". Design decisions and their reasons:
+Adding the risk term to M2's depth constraints is exactly what ROADMAP.md section 3 means by "add the M1 variance term to make it a convex QP, which links M1 and M2". Design decisions and their reasons:
 
 - **Sweep price uses arrival information only:** $\psi=P^{\max}_{a,\text{arr}}(1+\pi)-M_0$ (ROTE-Static); for the re-solved rung, $P^{\max}_{a,k}(1+\pi)-M_k$ with drift measured from the current mid. The horizon-end mid $M_T$ and the final snapshot's worst ask are look-ahead and are not admissible as a sweep price; T8 is the test that catches it.
 - **Net depth.** $D^{a,\text{net}}_t=\max(0,D^a_t-F_t)$. At planning time ROTE-Static has $F=0$ and uses $D^a_{\text{arr}}$; the simulator enforces the cap on the *actual* net depth.
@@ -475,7 +475,7 @@ Binaries $z_t$ with $q_t\le Mz_t$, $q_t\ge L_{\min}z_t$, objective plus $c_f\sum
 
 ### 6.6 M4 — Strategy selection (AHP)
 
-Criteria: cost, risk, completion, simplicity. Pairwise comparisons per trader profile (conservative, balanced, aggressive); eigenvector weights; consistency ratio $CR<0.1$ required or the matrix is re-elicited. The ranking selects among the *simulated* outputs of M1–M3 and the baselines on the selected window — i.e. M4 closes the loop the FE guideline wants: a genuine decision, not just a plot. Goal programming is the named alternative if the OR viva prefers it (roadmap §9's compression rule keeps AHP unless told otherwise).
+Criteria: cost, risk, completion, simplicity. Pairwise comparisons per trader profile (conservative, balanced, aggressive); eigenvector weights; consistency ratio $CR<0.1$ required or the matrix is re-elicited. The ranking selects among the *simulated* outputs of M1–M3 and the baselines on the selected window — i.e. M4 closes the loop the FE guideline wants: a genuine decision, not just a plot. Goal programming is the named alternative if the OR viva prefers it (roadmap section 9's compression rule keeps AHP unless told otherwise).
 
 ### 6.7 Role of machine learning
 
@@ -507,7 +507,7 @@ Admitted only as the drift term, behind the out-of-sample gate of section 5.4, a
 
 ### 7.2 One contract, one simulator
 
-ROADMAP.md §4's interface contract, as implemented in `src/utils/contracts.py`:
+ROADMAP.md section 4's interface contract, as implemented in `src/utils/contracts.py`:
 
 ```python
 load_day(stock: str, day: int) -> LOBFrame    # clean, validated, event-indexed
@@ -549,7 +549,7 @@ Our own fills remove displayed liquidity that the replayed book does not know ab
 
 ### 8.3 Assumptions and limitations (stated in the report, not hidden)
 
-ROADMAP.md §9 names the headline limitation — "recorded data doesn't react to your orders" — and the table below is the full list, with the direction of each bias.
+ROADMAP.md section 9 names the headline limitation — "recorded data doesn't react to your orders" — and the table below is the full list, with the direction of each bias.
 
 | ID | Assumption | Bias |
 |---|---|---|
@@ -560,20 +560,20 @@ ROADMAP.md §9 names the headline limitation — "recorded data doesn't react to
 | S5 | Quadratic cost model is a local approximation (square-root crossover for large sizes) | model risk |
 | S6 | Rows are 10-event blocks without timestamps: no intraday-seasonality control; calendar-time results cannot be stated | scope |
 | S7 | Stock-windows within a day share a market factor; pooled windows are not fully independent | CI optimism, handled in section 10.3 |
-| S8 | 10 days in June 2010 on a Nordic venue; 5 stocks — no claim about other venues or regimes (roadmap §6's "limitations" slide) | external validity |
+| S8 | 10 days in June 2010 on a Nordic venue; 5 stocks — no claim about other venues or regimes (roadmap section 6's "limitations" slide) | external validity |
 
 ---
 
 ## 9. Correctness standards
 
-**Unit and property tests (all must pass before any experiment).** T1–T14 are the scientific standards of the original specification; T15–T17 are the roadmap's own §4 requirement — "unit tests required for models (sum of trades equals X, no negative trades, closed form matches solver)" — made falsifiable. Markers T1–T14 are declared in `pyproject.toml`; **T15–T17 must be added to `[tool.pytest.ini_options].markers` when they are implemented.**
+**Unit and property tests (all must pass before any experiment).** T1–T14 are the scientific standards of the original specification; T15–T17 are the roadmap's own section 4 requirement — "unit tests required for models (sum of trades equals X, no negative trades, closed form matches solver)" — made falsifiable. Markers T1–T14 are declared in `pyproject.toml`; **T15–T17 must be added to `[tool.pytest.ini_options].markers` when they are implemented.**
 
 | ID | Test |
 |---|---|
 | T1 | Constant parameters, $\lambda=0$, no binding caps, $\alpha=0$: the QP returns TWAP$(T)$ |
 | T2 | Model verification: larger $\lambda$ or $\sigma$ front-loads the schedule |
 | T3 | First-period share is non-decreasing in $\lambda$ and $\sigma$, non-increasing in $\eta$ |
-| T4 | Unconstrained QP — caps slack, $\alpha=0$, sweep inactive so $u=0$ — matches the closed form $y_t=Q\sinh(\omega(T+1-t))/\sinh(\omega T)$, $\cosh\omega=1+\lambda\tilde\sigma^2/(2\tilde\eta_0\theta)$ in implementation units (section 5.3), equivalently $1+\lambda\sigma^2/2\eta$ in raw units (section 2.7). **This is ROADMAP §4's "closed form matches solver", for M1 and ROTE-Static** |
+| T4 | Unconstrained QP — caps slack, $\alpha=0$, sweep inactive so $u=0$ — matches the closed form $y_t=Q\sinh(\omega(T+1-t))/\sinh(\omega T)$, $\cosh\omega=1+\lambda\tilde\sigma^2/(2\tilde\eta_0\theta)$ in implementation units (section 5.3), equivalently $1+\lambda\sigma^2/2\eta$ in raw units (section 2.7). **This is ROADMAP section 4's "closed form matches solver", for M1 and ROTE-Static** |
 | T5 | Solution satisfies constraints and KKT conditions to tolerance; **no negative trades** for any model |
 | T6 | $T=3$ brute-force grid search agrees with the solver |
 | T7 | Infeasibility is detected; the sweep is never cheaper than a feasible marginal slice: $\psi>\tfrac12S_t+2\eta_t\rho D_t+\bar\alpha_t-\bar\alpha_T$ (the risk term only strengthens it, since an earlier fill removes exposure) |
@@ -581,7 +581,7 @@ ROADMAP.md §9 names the headline limitation — "recorded data doesn't react to
 | T9 | Simulator invariants: $\sum\text{fill}_t+u^{\text{real}}=Q$ (conservation across all rungs); fills and cash equal a per-snapshot walk with no footprint deduction when $\varphi=1$; Immediate cost is non-decreasing in $Q$; caps are never exceeded; the sweep is priced against depth net of $F_T+\text{fill}_T$, i.e. no resilience recovery on period $T$'s own fill (section 8.1), and it is priced at snapshot $T$ — the last snapshot inside the horizon, so no book printed after the horizon is ever read |
 | T10 | The worked example of section 2.1 returns 5.5 bps (2.5 + 3.0) |
 | T11 | Liquidity monotonicity: adding depth **at the price levels already in the book** never increases the optimal objective value. The qualifier is required: depth added at **new, worse** far levels raises $P^{\max}_a$ and therefore $\psi$, so with $u>0$ the unqualified statement is false — which is exactly the penalty-dominated regime of section 10.1 |
-| T12 | Conservation: planned vs executed shares and the section 10.2 components sum to $\text{Spend}-QM_0$; **for every model, `sum(Schedule.shares) == Q`** (roadmap §4: "sum of trades equals X") |
+| T12 | Conservation: planned vs executed shares and the section 10.2 components sum to $\text{Spend}-QM_0$; **for every model, `sum(Schedule.shares) == Q`** (roadmap section 4: "sum of trades equals X") |
 | T13 | Scale invariance: multiplying all prices by $c>0$ and all volumes by $d>0$ leaves bps metrics, $\theta$ and participation schedules unchanged |
 | T14 | AC-capped equals AC when caps are slack; TWAP$(T'=T)$ equals TWAP$(T)$ |
 | **T15** | **M2 shadow prices are the LP's own duals:** complementary slackness holds (dual $\ne0$ only where the constraint binds), duals are non-negative for $\le$ constraints, and recovering the objective from primal + dual (weak duality) matches to tolerance. The tab's "which depth constraints bind?" claim rests on this |
@@ -592,7 +592,9 @@ ROADMAP.md §9 names the headline limitation — "recorded data doesn't react to
 
 **Experimental correctness.** Chronological splits; calibration quantities (including regime thresholds) fit on calibration only; $\lambda^\*$ and the comparator $\lambda$s chosen on validation only; one test run from a frozen config; every table carries config hash and git commit; figures regenerate from `python run_experiment.py`.
 
-**A green test run is not evidence of a scientific claim.** Before citing any standard, know what it asserts: T1–T4, T9, T10, T12, T13, T14 have asserted bodies in the previous pipeline; placeholders marked `assert True` assert nothing and must not be cited in the report. The status of each standard is reported in section 11.5 at each checkpoint.
+**A green test run is not evidence of a scientific claim.** Before citing any standard, know what
+it asserts. The current marker tests exercise model conservation, book walking, AHP consistency,
+and horizon-causal simulation; dataset-dependent claims still require the audit and held-out run.
 
 ---
 
@@ -630,7 +632,7 @@ $$\text{Spend}=\sum_t C_t(\text{fill}_t)+C^{\text{ex}}_{\text{sweep}}(u^{\text{r
 | Sweep timing | $(M_T-M_0)\,u^{\text{real}}$ |
 | of which penalty premium | shares beyond visible depth $\times\big(P^{\max}_a(1+\pi)-M_T\big)$ |
 
-The execution-cost terms (half-spread, book-walk, sweep execution) plus the two timing terms sum exactly to $\text{Spend}-QM_0$, which T12 checks. All three sweep rows use $u^{\text{real}}$, the residual actually left after simulation, which equals the QP's planned $u$ only when no period came up short (sections 3, 8.1); every component row is computed from executed shares, never from the plan. Also reported: realised risk (std of IS), completion share (non-swept), peak participation, win rate versus TWAP$(T)$, and **predicted vs realised cost** (QP expected cost without the $\lambda$ term versus realised IS, both converted to bps of $QM_0$ before comparison; calibration slope near 1 is the target). Mean and standard deviation of shortfall in bps are exactly ROADMAP §3's "shared pieces".
+The execution-cost terms (half-spread, book-walk, sweep execution) plus the two timing terms sum exactly to $\text{Spend}-QM_0$, which T12 checks. All three sweep rows use $u^{\text{real}}$, the residual actually left after simulation, which equals the QP's planned $u$ only when no period came up short (sections 3, 8.1); every component row is computed from executed shares, never from the plan. Also reported: realised risk (std of IS), completion share (non-swept), peak participation, win rate versus TWAP$(T)$, and **predicted vs realised cost** (QP expected cost without the $\lambda$ term versus realised IS, both converted to bps of $QM_0$ before comparison; calibration slope near 1 is the target). Mean and standard deviation of shortfall in bps are exactly ROADMAP section 3's "shared pieces".
 
 **The risk–cost frontier is read as an efficient frontier, not just a chart.** E3 plots mean IS against realised risk for every $\omega$ of both M1 and ROTE-Static; a point below-and-left of another dominates it; the FE framing (mean–variance trade-off, risk aversion as utility) is satisfied by reading $\omega$ as the marginal rate of substitution between the two axes and reporting the slope along the fitted frontier.
 
@@ -659,7 +661,7 @@ The execution-cost terms (half-spread, book-walk, sweep execution) plus the two 
 | E6 | Ablations: re-solve with frozen arrival state, drift, depth-response regression (section 1.4), exact-book variant | 2 | test |
 | E7 | Design sensitivity ($T$, $m$, $b$, $\sigma_{\min}$, $T'$) | 2 | **validation only** |
 
-Priority order for the sprint: E0, E1, E3, E4, E5-min, then E2, E6, E5, E7. E1 and E3 are the roadmap's "benchmark comparison table (cost, std)" and "M1 frontier" of presentation section 6 (roadmap §6).
+Priority order for the sprint: E0, E1, E3, E4, E5-min, then E2, E6, E5, E7. E1 and E3 are the roadmap's "benchmark comparison table (cost, std)" and "M1 frontier" of presentation section 6 (roadmap section 6).
 
 ### 10.5 Pre-registration (frozen configuration)
 
@@ -669,15 +671,15 @@ There is **no separate pre-registration document**; the mechanism is the frozen 
 
 ## 11. Delivery plan
 
-`ROADMAP.md` §5 owns the schedule (weeks, owners, exit criteria); this section states how a *phase* maps onto it and what gate a week must clear.
+`ROADMAP.md` section 5 owns the schedule (weeks, owners, exit criteria); this section states how a *phase* maps onto it and what gate a week must clear.
 
-### 11.1 Owners (ROADMAP §4)
+### 11.1 Owners (ROADMAP section 4)
 
 Name owners in the repo README. Everyone reviews at least one other person's pull requests.
 
 | # | Workstream | Owns | Also owns |
 |---|---|---|---|
-| 1 | **Data and app shell** | `src/loader/`, `src/stats/`, Data and Statistics tabs, Streamlit skeleton | Final integration and deployment |
+| 1 | **Data and app shell** | `src/loader/`, `src/stats/`, Data and Statistics tabs, Streamlit integration | Final integration and deployment |
 | 2 | **Finance and simulation** | `src/impact/`, `src/sim/`, `src/benchmarks/`, Compare tab | Financial interpretation of results; Decision-tab wording |
 | 3 | **Optimisation A** | M1 (closed form + cvxpy), ROTE-Static frontier over $\omega$, M4 (AHP) | Optimiser tab for M1/ROTE-Static; Decision tab logic |
 | 4 | **Optimisation B** | M2 (LP, shadow prices), M3 (MIP), sensitivity analysis | Optimiser tab for M2 and M3 |
@@ -686,7 +688,7 @@ Branch per feature, pull request with one reviewer, unit tests required for mode
 
 ### 11.2 Weeks → gates
 
-| Weeks | Focus (ROADMAP §5) | Gate here | Definition of done for that gate |
+| Weeks | Focus (ROADMAP section 5) | Gate here | Definition of done for that gate |
 |---|---|---|---|
 | 1 (5–11 Oct) | Interface contract, branches, CI-lite; loader + normalisation check; M1/M2 on a toy book | **G1** | `load_day()` works for all 5 stocks and 10 days; contract merged; review-1 feedback listed in `docs/feedback_log.md`; audit report regenerated (`A0–A4` PASS) |
 | 2 | Statistics module + Statistics tab; impact calibration days 1–7 validated on 8–10; M1/M2 on real data | **G2** | Statistics on demand in the UI; impact parameters per stock with intervals; `splits-frozen` |
@@ -702,7 +704,7 @@ Branch per feature, pull request with one reviewer, unit tests required for mode
 
 Week 1 must produce a written answer to every row of section 4.1 before any optimisation code exists (the audit is regenerated as G1 because the loader is being rebuilt). Matched-risk machinery (section 1.5) is tested on synthetic frontiers with a known crossing during Week 5. The test run is **single** and automated: results are read only after it completes.
 
-### 11.4 Compression rules (ROADMAP §9)
+### 11.4 Compression rules (ROADMAP section 9)
 
 **If the final presentation is under about 6 weeks away**, cut in this order:
 
@@ -720,28 +722,27 @@ Recorded so this document alone tells the reader where the project stands. A pha
 | OR prior permission for the QP/optimal-execution topic (section 2.3) | **Complete** | Permission obtained; topic accepted |
 | First Project Review (sections 2.4–2.5) | **Complete** | Presented and completed 2026-10-04; feedback incorporated; log in `docs/feedback_log.md` |
 | CR dataset/group registration (section 2.3) | **Complete** | FI-2010 registered on the CR sheet |
-| Phase-1 audit A0–A8 | **Complete, facts recorded** | All checks PASS on the real dataset (A7 N/A); results recorded in `configs/experiment.yaml` (`variant: DecPre`, `scale_exponent: 6`, `scope: global`) and this section 4.1. **The report file `data/README.md` and the six figures were removed with the old pipeline and must be regenerated in Week 1 (G1)** |
+| Phase-1 audit A0–A8 | **Complete, facts recorded** | All checks pass on the real dataset (A7 N/A); the current report is `data/README.md` and the generated audit figures are in `results/figures/`. |
 | Scale recovery (A1) | **Complete** | Decimal-precision DecPre, global $k=6$: `price_euros = stored×100`, `vol_shares = stored×10^6` |
 | Stock/day boundaries (A2) | **Complete** | Five stocks identified (Kesko, Outokumpu, Sampo, Rautaruukki, Wärtsilä); 10 days |
 | Splits | **Frozen** | Tag `splits-frozen`; `configs/splits.yaml`: calibration days 1–5, validation 6–7, test 8–9, reserve 10; purge gap 400 rows; $N_{\text{eff}}$ = 451/178/261 windows |
 | Phase-1 decision log | **Complete** | `docs/decision_log.md` |
-| **Migration to the ROADMAP architecture** | **In progress (Week 1)** | Old pipeline removed (`src/data`, `src/cost`, `src/optimize`, `src/simulator`, `src/features`, `run_experiment.py`, `CHANGELOG.md`, `DECISIONS.md`); new layout in place as skeletons: `src/utils/contracts.py` (implemented — `Order`, `Schedule`, `CostReport`), `src/loader/loader.py`, `src/impact/impact.py`, `src/models/{m1_ac,m2_lp,m3_mip,m4_ahp}.py`, `src/sim/simulate.py`, `src/stats/stats.py`, `src/benchmarks/twap.py` (stubs) |
-| Test suite | **Not yet migrated** | Only `tests/test_basic.py` (2 contract tests) remains; the previous 222-test suite was removed with the old pipeline. **Nothing in section 9 has been re-implemented yet**, so no T-standard currently asserts. G1's audit tests, G2's impact tests and G3's T1–T17 are the Week 1–4 work |
-| UI (`app.py`) | **Reset** | Streamlit entry point present with title and roadmap reference; the five panels of section 1.3 are to be built in Weeks 1–5 |
-| Correctness test suite | **Historical reference only** | The previous pipeline had 222 tests with 9 of 14 standards asserting (T1–T4, T9, T10, T12, T13, T14) and 16 `assert True` placeholders (T5–T8, T11). That evidence does not carry over to the new tree and must not be cited for it |
-| Gates G1–G8 | **0 of 8 met** | See section 11.2 |
+| **Implementation** | **Complete for the current tree** | `src/loader`, `src/data`, `src/cost`, `src/impact`, `src/models`, `src/sim`, `src/stats`, `src/benchmarks`, `src/reports`, and `run_experiment.py` are active code paths; obsolete duplicate modules were removed |
+| Test suite | **Active** | Model, loader, benchmark, simulator, report, CLI, and integration tests run with `ROTE_DATA_ROOT` set; correctness markers point to behavioral assertions |
+| UI (`app.py`) | **Implemented** | Five panels are wired to the shared contracts and simulator |
+| Gates G1–G8 | **Evidence-dependent** | Dataset-dependent gates require a local FI-2010 checkout and are not claimed from source tests alone |
 
 ### 11.6 Document discipline
 
 Hypotheses, primary tests and the acceptance rule are **fixed** by this file, and nothing in it is revised on the basis of test results. Before the single test-set run they may be changed for two reasons only: the Phase-1 audit outcome (section 4.1), which supplies the empirical facts the design depends on; or a factual error or internal inconsistency, which is a property of the text rather than a result. After the test run they are frozen, and any later change is labelled *post hoc* in the report.
 
-**Companion documents.** `ROADMAP.md` (approach, schedule, model menu) and `AGENTS.md` (engineering scaffold) are companions: where `ROADMAP.md` and this file differ on *what is due when*, `ROADMAP.md` governs; where they differ on *how something is measured or claimed*, this file governs. Design decisions are recorded in `docs/decision_log.md`, review feedback in `docs/feedback_log.md`, and the rejected alternatives register is `docs/REUSE_ANALYSIS.md`. `CHANGELOG.md` and `DECISIONS.md` were retired with the old pipeline. No superseded draft exists as a file or is relied on here.
+**Companion documents.** `ROADMAP.md` (approach, schedule, model menu) and `AGENTS.md` (engineering scaffold) are companions: where `ROADMAP.md` and this file differ on *what is due when*, `ROADMAP.md` governs; where they differ on *how something is measured or claimed*, this file governs. Design decisions are recorded in `docs/decision_log.md`, and review feedback in `docs/feedback_log.md`. Historical planning registers were retired once implementation was integrated.
 
 ---
 
 ## 12. Presentation and viva readiness
 
-**Final presentation outline** (roadmap §6):
+**Final presentation outline** (roadmap section 6):
 
 1. Problem, and **what changed since review 1** (feedback addressed — cite `docs/feedback_log.md`)
 2. Data and cleaning, including the stated assumptions (relative units, event time) — sections 4.1–4.2
@@ -754,7 +755,7 @@ Hypotheses, primary tests and the acceptance rule are **fixed** by this file, an
 
 **Speaker allocation:** one section per member (the owner of section 11.1 for that part), but rotate who answers questions so everyone fields questions outside their own part.
 
-**Viva readiness** (roadmap §7). Each member must be able to:
+**Viva readiness** (roadmap section 7). Each member must be able to:
 
 - write M1 to M4 from memory and explain every symbol (sections 6.1–6.6 and the notation table of section 3);
 - explain every FI-2010 column used and the normalisation caveat (section 4);
@@ -783,7 +784,6 @@ ROTE/
 ├── docs/
 │   ├── decision_log.md       # design decisions
 │   ├── feedback_log.md       # review-1 feedback and disposition (section 2.5)
-│   └── REUSE_ANALYSIS.md
 ├── notebooks/rote_analysis.ipynb   # notebook UI (section 1.3)
 ├── src/
 │   ├── utils/contracts.py    # Order, Schedule, CostReport (section 7.2)
@@ -826,7 +826,7 @@ Run every command from the repo root: output paths are CWD-relative. The test sp
 
 | ID | Risk | Mitigation |
 |---|---|---|
-| R1 | FI-2010 scale not recoverable (normalization variant or scope misread) | A1 discriminating tests first; resolution order of section 4.1; relative-units fallback (roadmap §2) if no route works |
+| R1 | FI-2010 scale not recoverable (normalization variant or scope misread) | A1 discriminating tests first; resolution order of section 4.1; relative-units fallback (roadmap section 2) if no route works |
 | R2 | Cost model misfits (quadratic vs real walk) | Three families compared out of sample, choice frozen on validation (section 5.2); E0 test; exact-book variant as robustness check |
 | R3 | Arrival-state effect too small to detect (H3(a)) | Matched-risk acceptance rule with paired CI; dominance reported separately; MDE computed in advance; null result published as a characterisation of *when* state-awareness matters |
 | R4 | Solver issues | Small convex QP; T4–T6 against closed form and brute force; LP/MIP reported with relaxation bounds (T16) |
@@ -844,17 +844,17 @@ Run every command from the repo root: output paths are CWD-relative. The test sp
 | R16 | Primary effect smaller than the MDE | MDE in Week 1; declare tests descriptive in advance |
 | R17 | Order sizes unrealistic for the venue ($\theta\ge1$ exceeds visible depth) | A8 euro translation; label penalty-dominated results |
 | R18 | Cross-stock dependence overstates precision | Stock-wise results; day-cluster sensitivity; S7 |
-| R19 | UI under-delivered (guideline non-compliance) | UI is Tier 1 (section 1.3); Week 1 skeleton, Week 2 statistics, Weeks 3–5 panels; both Tier-1 models guaranteed regardless of Tier 2 |
+| R19 | UI under-delivered (guideline non-compliance) | UI is Tier 1 (section 1.3); all five panels are implemented and must be exercised before release; both Tier-1 models remain guaranteed regardless of Tier 2 |
 | R20 | Risk grid silently degenerate — an absolute $\lambda$ grid that is too small makes every risk-aware rung return TWAP$(T)$ exactly | Grid is on $\omega$, never on $\lambda$ (section 5.3); a test asserts that the first-period share at the largest $\omega$ differs from TWAP$(T)$'s, so a degenerate grid fails loudly |
 | R21 | Migration churn (the ROADMAP rewrite discards a green 222-test pipeline) | Facts already verified are recorded in `configs/` and section 4.1; each Week 1–4 exit re-establishes its own gate; no result from the removed pipeline is cited for the new tree (section 11.5) |
-| R22 | One person holds the maths (roadmap §9) | Pairing on formulations; quiz rounds (section 12) |
-| R23 | Demo fails live (roadmap §9) | Recorded backup; pinned environment; test on the presentation machine |
+| R22 | One person holds the maths (roadmap section 9) | Pairing on formulations; quiz rounds (section 12) |
+| R23 | Demo fails live (roadmap section 9) | Recorded backup; pinned environment; test on the presentation machine |
 
 ---
 
 ## 15. Stretch extensions (Tier 3)
 
-- **Stretch ML model (roadmap §10):** a supervised model on the FI-2010 labels (scikit-learn; LightGBM or PyTorch only if a Tier-1 and Tier-2 gap does not claim the time). Chronological split preserved; labels read only here; the model must beat the no-ML drift on validation or it is reported as a negative result (section 6.7).
+- **Stretch ML model (roadmap section 10):** a supervised model on the FI-2010 labels (scikit-learn; LightGBM or PyTorch only if a Tier-1 and Tier-2 gap does not claim the time). Chronological split preserved; labels read only here; the model must beat the no-ML drift on validation or it is reported as a negative result (section 6.7).
 - Leave-one-stock-out generalisation (needs its own split mode); time-varying $\rho$; passive-order extension; transient-impact kernel; nonlinear (power-law) cost; sell-side full replication.
 
 ---

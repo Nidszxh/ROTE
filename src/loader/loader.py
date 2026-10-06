@@ -197,14 +197,12 @@ def resolve_test_file(
 ) -> Path:
     if data_root is None:
         data_root = resolve_data_root(config or {})
-    cf_id = day - 7
+    if day not in range(8, 11):
+        raise ValueError(f"test day must be 8, 9, or 10, got {day}")
+    cf_id = day - 1
     candidates = sorted(data_root.glob(f"Test*CF_{cf_id}.txt"))
     if not candidates:
-        # Fallback to train file if Test is unavailable, just to make something work for now,
-        # but realistically we expect Test_Dst_NoAuction_DecPre_CF_*.txt
-        candidates = sorted(data_root.glob("Train*.txt"))
-        if not candidates:
-            raise FileNotFoundError(f"no test file for day {day} in {data_root}")
+        raise FileNotFoundError(f"no test file for day {day} in {data_root}")
     return candidates[0]
 
 
@@ -235,7 +233,7 @@ def load_day(stock: str, day: int) -> tuple[Lob, int, bool]:
             stock_idx = i
             break
     if stock_idx == -1:
-        stock_idx = 0  # fallback
+        raise ValueError(f"unknown stock {stock!r}; expected one of {STOCK_NAMES}")
 
     if day <= 7:
         _, lob, boundaries = load_train_lob(config)

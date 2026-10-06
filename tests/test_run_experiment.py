@@ -21,9 +21,12 @@ def test_unknown_command(capsys):
     assert "use" in out
 
 
-def test_stubs(capsys):
+def test_frontier_command(capsys, monkeypatch):
+    import src.reports.generate_report as report
+
+    monkeypatch.setattr(report, "generate_all_reports_and_figures", lambda: None)
     assert rx.main(["frontier"]) == 0
-    assert "stub" in capsys.readouterr().out
+    assert "frontier" in capsys.readouterr().out
 
 
 def test_calibrate_command(capsys):

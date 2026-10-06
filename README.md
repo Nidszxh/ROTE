@@ -35,9 +35,13 @@ ROTE/
 ├── app.py                      # 5-Tab Streamlit interactive research platform
 ├── pyproject.toml              # Tool configs, pytest markers, and dependencies
 ├── src/
+│   ├── config.py               # Validated experiment configuration and hashes
+│   ├── data/                   # Dataset audit, loading, splits, and audit figures
+│   ├── cost/                   # Book walking, units, and quadratic calibration
 │   ├── loader/                 # FI-2010 data loader & normalization handling
 │   ├── stats/                  # Microstructure & liquidity statistics
 │   ├── impact/                 # Quadratic, square-root, and linear impact models
+│   ├── optimize/               # Static quadratic schedule formulation
 │   ├── models/
 │   │   ├── __init__.py         # Model package exports (M1-M4)
 │   │   ├── m1_ac.py            # M1: Almgren-Chriss (closed-form + cvxpy)
@@ -61,11 +65,11 @@ ROTE/
 │   └── test_basic.py           # Sanity and contract checks
 ├── results/
 │   ├── MODEL_EXECUTION_REPORT.md  # Compiled analysis and metrics report
+│   ├── tables/calibration.json    # Persisted eta_0 estimates
 │   └── figures/*.png              # High-resolution publication figures
 └── docs/
     ├── feedback_log.md         # Review-1 feedback tracker
     ├── decision_log.md         # Architecture decision records
-    ├── REUSE_ANALYSIS.md       # Component classification and reuse audit
     ├── FINAL_REPORT.md         # Full project report and findings
     └── PRESENTATION_DECK.md    # 8-slide presentation deck outline
 ```
