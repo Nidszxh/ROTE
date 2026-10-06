@@ -17,8 +17,8 @@ htmlcov/
 *.egg-info/
 build/
 dist/
-# uv.lock is intentionally NOT ignored: it is the reproducibility record for the
-# pinned environment and belongs in version control if it is ever generated.
+# This project intentionally does not commit a uv lockfile. Dependencies are declared in
+# pyproject.toml and installed with `uv pip install -r pyproject.toml --extra dev`.
 
 # Secrets and local overrides. OpenCode denies agent reads of `.env*` by
 # default; these rules are what stops them being committed.

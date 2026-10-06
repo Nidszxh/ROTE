@@ -504,17 +504,27 @@ def plot_ahp_ranking(
     Left: Normalized weights assigned to decision criteria.
     Right: Final composite scores across candidate execution models.
     """
-    if len(weights) != 3:
+    if len(weights) == 2:
         raise ValueError(f"weights must have length 3, got {len(weights)}")
+    if len(weights) not in (3, 4):
+        raise ValueError(f"weights must have length 3 or 4, got {len(weights)}")
     if scores_df.empty or "Model" not in scores_df or "Score" not in scores_df:
         raise ValueError("scores_df must contain 'Model' and 'Score' columns")
 
-    criteria = ["Cost", "Risk", "Simplicity"]
+    criteria = (
+        ["Cost", "Risk", "Completion", "Simplicity"]
+        if len(weights) == 4
+        else [
+            "Cost",
+            "Risk",
+            "Simplicity",
+        ]
+    )
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.8), dpi=150)
 
     # 1. Criteria Weights
     _apply_theme(ax1)
-    bar_colors = [COLORS["ask"], COLORS["bid"], COLORS["accent"]]
+    bar_colors = [COLORS["ask"], COLORS["bid"], COLORS["accent"], COLORS["purple"]][: len(weights)]
     ax1.bar(criteria, weights * 100, color=bar_colors, width=0.55, edgecolor="#37474F", alpha=0.85)
     for i, w in enumerate(weights):
         ax1.text(i, w * 100 + 1.5, f"{w * 100:.1f}%", ha="center", fontsize=9, fontweight="bold")

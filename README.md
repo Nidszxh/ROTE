@@ -42,6 +42,7 @@ ROTE/
 │   ├── stats/                  # Microstructure & liquidity statistics
 │   ├── impact/                 # Quadratic, square-root, and linear impact models
 │   ├── optimize/               # Static quadratic schedule formulation
+│   ├── evaluation/             # Multi-window evaluation and confidence intervals
 │   ├── models/
 │   │   ├── __init__.py         # Model package exports (M1-M4)
 │   │   ├── m1_ac.py            # M1: Almgren-Chriss (closed-form + cvxpy)
@@ -68,7 +69,7 @@ ROTE/
 │   ├── tables/calibration.json    # Persisted eta_0 estimates
 │   └── figures/*.png              # High-resolution publication figures
 └── docs/
-    ├── feedback_log.md         # Review-1 feedback tracker
+    ├── ARCHITECTURE.md        # Current data-to-decision architecture
     ├── decision_log.md         # Architecture decision records
     ├── FINAL_REPORT.md         # Full project report and findings
     └── PRESENTATION_DECK.md    # 8-slide presentation deck outline
@@ -82,13 +83,28 @@ ROTE/
 Python **3.11+** (tested on 3.12). Using [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
-# Set dataset path (if using local FI-2010 files)
-export ROTE_DATA_ROOT="$HOME/data/FI-2010"
-
 # Install dependencies into virtual environment
 uv venv .venv
 uv pip install -r pyproject.toml --extra dev
 ```
+
+### Dataset setup
+
+The FI-2010 files are not committed to Git because the raw release is nearly 1 GB. Store the
+extracted files in `data/raw/FI-2010/`. Download the published archive from
+the [Fairdata dataset page](https://etsin.fairdata.fi/dataset/73eb48d7-4dbc-4a10-a52a-da745b47a649)
+under its CC BY 4.0 terms, then run:
+
+```bash
+uv run --no-sync python run_experiment.py setup --zip /path/to/fi2010.zip
+```
+
+The command extracts only the four required files, verifies the manifest, and builds the
+disposable cache under `data/processed/`. Use `--verify-only` to check an existing installation
+or `--force` to rebuild it. If the data is stored outside the repository, set
+`ROTE_DATA_ROOT=/path/to/FI-2010` before running commands. The archive's direct URL is
+intentionally not hardcoded because the Fairdata landing page is JavaScript-driven;
+`--url` is supported when a stable archive endpoint is available.
 
 ### Running the Interactive UI
 Launch the 5-tab Streamlit dashboard:
@@ -103,7 +119,7 @@ Tabs included:
 5. **5. Decision**: AHP preference matrix configuration, real-time consistency ratio check, and strategy scoring.
 
 ### Generating Executive Reports & Visualizations
-Compile all 7 publication-grade figures and generate the Markdown executive report:
+Compile the publication figures and generate the Markdown executive report:
 ```bash
 uv run --no-sync python -m src.reports.generate_report
 ```
@@ -111,14 +127,58 @@ Artifacts generated:
 - Figures saved to `results/figures/` (LOB depth ladder, microstructure dashboard, M1 efficient frontier, M2 shadow prices, M3 ticket fee trade-off, benchmark Pareto scatter, AHP ranking).
 - Executive Markdown report saved to `results/MODEL_EXECUTION_REPORT.md`.
 
+Run the multi-stock evaluation configured in `configs/experiment.yaml`:
+
+```bash
+uv run --no-sync python run_experiment.py evaluate
+```
+
+The evaluation report is written to `results/EVALUATION_REPORT.md` and includes bootstrap
+confidence intervals and Holm-corrected paired comparisons.
+
 ### Running Test Suites
 ```bash
-# Run all model, baseline, visualization, and integration tests
-uv run --no-sync pytest tests/test_e2e.py tests/test_models.py tests/test_baselines.py tests/test_visualizations.py tests/test_basic.py
-
-# Run linter and formatting checks
+# Run the complete quality gate
 uv run --no-sync ruff check .
 uv run --no-sync ruff format --check .
+uv run --no-sync pytest
+```
+
+### Complete end-to-end command sequence
+
+Run these commands from the repository root after placing the FI-2010 archive on disk:
+
+```bash
+# 1. Create the environment and install declared dependencies (no uv.lock is used)
+uv venv .venv
+uv pip install -r pyproject.toml --extra dev
+
+# 2. Extract the four required raw files into data/raw/FI-2010/,
+#    verify sizes and SHA-256 values, and build data/processed/ caches
+uv run --no-sync python run_experiment.py setup --zip /path/to/fi2010.zip
+
+# 3. Verify the local raw release without rebuilding it
+uv run --no-sync python run_experiment.py setup --verify-only
+
+# 4. Run data quality and protocol checks
+uv run --no-sync python run_experiment.py audit
+uv run --no-sync python run_experiment.py freeze-splits
+
+# 5. Calibrate impact parameters and generate audit figures
+uv run --no-sync python run_experiment.py calibrate
+uv run --no-sync python run_experiment.py figures
+
+# 6. Run multi-stock evaluation with confidence intervals and Holm correction
+uv run --no-sync python run_experiment.py evaluate
+
+# 7. Generate the benchmark report and figures
+uv run --no-sync python -m src.reports.generate_report
+
+# 8. Run the complete confirmatory test pipeline
+uv run --no-sync python run_experiment.py full --test --confirm
+
+# 9. Launch the interactive five-tab application
+uv run --no-sync streamlit run app.py
 ```
 
 ---

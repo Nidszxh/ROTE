@@ -13,19 +13,18 @@ described directories do not exist.
 ## Environment
 
 ```bash
-export ROTE_DATA_ROOT="$HOME/data/FI-2010"     # MANDATORY, see below
 uv venv .venv && uv pip install -r pyproject.toml --extra dev
 ```
 
-- **`ROTE_DATA_ROOT` must be exported.** `configs/experiment.yaml` ships `dataset.root: null`
-  and the fallbacks `data/raw/FI-2010` / `data/FI-2010` do not exist. Without it two tests
-  fail *hard* rather than skipping: `tests/test_e2e.py::test_end_to_end_pipeline` and
-  `tests/test_run_experiment.py::test_calibrate_command` (the suite is not hermetic).
+- Dataset files belong in `data/raw/FI-2010/`, which is the first repository-local fallback.
+  `ROTE_DATA_ROOT` is an optional override for a dataset stored elsewhere. Missing-data tests
+  skip with an explicit setup message.
 - There is **no build backend**. Never `uv pip install -e .` / `pip install .` — it silently
   falls back to setuptools and drops a `src/rote.egg-info/`. Deps are declared in
   `pyproject.toml` and installed as a requirements file.
 - `uv run --no-sync` reuses `.venv` without re-resolving. Python 3.12, cvxpy solvers available:
   CLARABEL, HIGHS, OSQP, SCIPY, SCS.
+- There is intentionally no `uv.lock`; install from `pyproject.toml` with `uv pip install`.
 - **Run everything from the repo root.** Output paths (`results/`, `data/`, `report/`) are CWD-relative.
 
 ## Commands
@@ -97,8 +96,8 @@ bare imports, and `app.py` / `src/reports/` need the repo root. The tree is alre
 - Days 1–7 are carved out of the train file assuming **uniform day lengths** (no timestamps, no
   `train_6` exists). Days 8/9/10 map to `Test*CF_{day-1}.txt`. `configs/splits.yaml` freezes
   calibration = 1–5, validation = 6–7, test = 8–9, reserve = 10.
-- `load_day` re-parses the whole file on every call (no caching) and `app.py` calls it inside
-  the Streamlit rerun loop. Don't call it per-widget.
+- `load_day` parses source files on demand. The setup command and processed cache are the
+  preferred path for interactive use.
 - `.gitignore`'s `/data/raw/*` is the **only** guard against committing the dataset. Verify with
   `git check-ignore -v data/raw/<file>` before any `git add`.
 
@@ -124,18 +123,14 @@ bare imports, and `app.py` / `src/reports/` need the repo root. The tree is alre
 - `tests/conftest.py` supplies `synthetic_lob` (hand-built 300×10 book, no dataset) and
   `tmp_config` (writes into `tmp_path`). Model/visualization tests need only `synthetic_lob`;
   the loader/audit/CLI tests read the real dataset.
-- `tests/test_layers.py` AST-scans `src/*` and fails if anything imports `evaluation`.
-  `src/evaluation/` does not exist yet — keep the layer rule when it lands.
+- `tests/test_layers.py` AST-scans `src/*` and fails if anything imports `evaluation`; keep this
+  layer rule as the evaluation package is extended.
 
 ## Stale tracked artifacts
 
-- `data/README.md` and the six `results/figures/fig*.png` were generated from nine **synthetic**
-  files; the report claims "9 files (0 test)" and A6 `WARN`. The real release gives 4 files and
-  A6 `PASS` (451/178/261). Re-running `audit` is a **correction, not a regression** — it is a
-  deliberate, separate act; review `git diff data/README.md` line by line.
-- `README.md` section 2's tree omits `src/config.py`, `src/data/`, `src/cost/`, and
-  `src/optimize/`. `PROPOSAL.md` section 13.1 lists
-  `src/evaluation/`, `src/baselines/` and `notebooks/`, none of which exist.
+- `data/README.md` and the figures are generated evidence artifacts. Regenerate them only when
+  source data or experiment configuration changes.
+- Keep the README tree synchronized with the actual source packages.
 - Generated analysis and planning registers are not retained in `docs/`.
 
 ## Config as source of truth

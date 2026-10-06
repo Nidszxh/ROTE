@@ -29,7 +29,7 @@ def test_frontier_command(capsys, monkeypatch):
     assert "frontier" in capsys.readouterr().out
 
 
-def test_calibrate_command(capsys):
+def test_calibrate_command(capsys, require_dataset):
     assert rx.main(["calibrate"]) == 0
     assert "Calibrating" in capsys.readouterr().out
 

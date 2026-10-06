@@ -9,7 +9,7 @@
 | **Type** | Financial Engineering × Operations Research |
 | **Approach and schedule** | **`ROADMAP.md` governs them** — the model menu (M1–M4), the interface contract, the eight-week plan, the four-owner split, the UI panel flow, the tech stack and the compression rules |
 | **Status** | **Final** — the authoritative specification of *what* is built and *how it is judged*. Its hypotheses, primary tests and acceptance rule (section 1.5) are fixed and are not revised on the basis of test results |
-| **Progress (2026-10-06)** | **Integrated research implementation.** The loader, audit, statistics, impact, four models, benchmarks, simulator, Streamlit UI, report generator, and CLI are implemented and covered by targeted tests. The simulator uses only snapshots inside the requested horizon, and calibration outputs are persisted under `results/tables/`. Dataset-dependent commands require `ROTE_DATA_ROOT`. |
+| **Progress (2026-10-06)** | **Integrated research implementation.** The loader, audit, statistics, impact, four models, benchmarks, simulator, Streamlit UI, report generator, and CLI are implemented and covered by targeted tests. The simulator uses only snapshots inside the requested horizon, calibration outputs are persisted under `results/tables/`, and the default dataset location is `data/raw/FI-2010`. |
 | **Guideline compliance** | FE + OR course guidelines: public dataset (FI-2010); Python tool; UI with dataset loading, statistics on demand and ≥2 user-selectable optimisation models (section 1.3); ≥2 distinct financial analyses from a menu (section 1.3); Tools & Technologies (section 2.6); First Review Alignment (section 2.4); course-topic approval obtained (section 2.3) |
 | **Evidence tags** | **[S]** stated in the dataset paper (Ntakaris et al., 2018); **[C]** confirmed by the Phase-1 audit run on the real dataset; **[K]** a design convention, not a fact |
 
@@ -33,7 +33,7 @@ A trader must liquidate (or buy) a large parent order. Trading fast pays market 
 |---|---|---|
 | FE | Real data cleaned; descriptive stats; ≥2 analyses from a menu; interpretation; a genuine decision; financial theory as backbone | Mean–variance trade-off and efficient frontier of cost vs risk; risk aversion as utility; Decision tab |
 | OR | Dataset loaded in UI; stats on demand; ≥2 optimisation models; formulations; sensitivity; results interpretation; viva on formulations | Convex QP (M1/ROTE-Static), LP with shadow prices (M2), fixed-charge IP (M3), AHP (M4) |
-| Both | Review-1 feedback incorporated; every member presents and can answer on everything | Feedback log (`docs/feedback_log.md`); rotation of presenters and quiz sessions (section 12) |
+| Both | Review-1 feedback incorporated; every member presents and can answer on everything | Decision log and test evidence; rotation of presenters and quiz sessions (section 12) |
 
 The deliverable checklist in section 16 is the roadmap's definition of done, restated with the gate names this document uses.
 
@@ -87,7 +87,7 @@ The optimiser is the instrument used to measure this, and the model menu of sect
 
 A user interface is **mandatory under both guidelines** (FE: run ≥2 distinct financial analyses from a menu; OR: load the dataset, generate statistics on demand, and perform ≥2 user-selectable optimisation models), so it is a **Tier 1 deliverable**, not an optional extra. The same capability is provided twice — a Streamlit web app (`app.py`) and a Jupyter/Colab notebook (`notebooks/rote_analysis.ipynb`) with widgets — and both are thin wrappers over the existing `src/` modules (no logic duplication). The UI follows the roadmap's five-panel flow **Data → Statistics → Optimiser → Compare → Decision**:
 
-1. **Dataset Loader.** Upload or select the FI-2010 file (path defaulting to `$ROTE_DATA_ROOT`); display dataset dimensions (rows × columns), detected stocks and days (A2), the recovered normalisation/scale (A1), and the data-quality/audit status (A0–A4) read from the Phase-1 audit report.
+1. **Dataset Loader.** Upload or select the FI-2010 file (path defaulting to `data/raw/FI-2010`, with `$ROTE_DATA_ROOT` as an override); display dataset dimensions (rows × columns), detected stocks and days (A2), the recovered normalisation/scale (A1), and the data-quality/audit status (A0–A4) read from the Phase-1 audit report.
 2. **Descriptive Statistics (on demand).** Spread, bid/ask depth, mid-price, order-book imbalance (OBI), volatility and liquidity statistics — mean, std, min, max and depth percentiles — plus the relevant plots on demand, all computed by the audit/feature pipeline. Shown as *findings*, not raw charts (roadmap section 6).
 3. **Optimiser / Analysis Menu.** The user selects the optimisation model and its parameters ($\theta$ or $Q$, $T$, $\lambda$, $\rho$), runs it on a chosen window, and sees the optimal execution schedule together with expected cost, realised risk, implementation shortfall and completion share. **All four roadmap models are selectable, and both Tier-1 models are guaranteed:**
    - **M1 — Almgren–Chriss mean–variance schedule** (roadmap section 3): closed form, risk aversion $\lambda$; the state-blind reference, same order/horizon/risk framework (section 6, rungs 3/3b).
@@ -178,7 +178,7 @@ This proposal maps directly to the first review requirements:
 
 ### 2.5 Review-1 feedback
 
-Review-1 feedback and its disposition live in `docs/feedback_log.md` (roadmap section 8), one row per comment: what was asked, what changed, in which commit. The absence of a row is itself a finding, and section 16 requires the log to be complete before the final presentation.
+Review-1 feedback was incorporated into the implementation and is now represented by the decision log and verification suite.
 
 ### 2.6 Tools and Technologies
 
@@ -690,7 +690,7 @@ Branch per feature, pull request with one reviewer, unit tests required for mode
 
 | Weeks | Focus (ROADMAP section 5) | Gate here | Definition of done for that gate |
 |---|---|---|---|
-| 1 (5–11 Oct) | Interface contract, branches, CI-lite; loader + normalisation check; M1/M2 on a toy book | **G1** | `load_day()` works for all 5 stocks and 10 days; contract merged; review-1 feedback listed in `docs/feedback_log.md`; audit report regenerated (`A0–A4` PASS) |
+| 1 (5–11 Oct) | Interface contract, branches, CI-lite; loader + normalisation check; M1/M2 on a toy book | **G1** | `load_day()` works for all 5 stocks and 10 days; contract covered by tests; audit report regenerated (`A0–A4` PASS) |
 | 2 | Statistics module + Statistics tab; impact calibration days 1–7 validated on 8–10; M1/M2 on real data | **G2** | Statistics on demand in the UI; impact parameters per stock with intervals; `splits-frozen` |
 | 3–4 | $\omega$ sweep and frontier; M4 with consistency check; M3 + sensitivity; backtest with Immediate and TWAP; Optimiser and Compare tabs wired | **G3** | Every model returns a `Schedule`; benchmark table reproducible; T1–T17 pass; **G4** (MVP): Tier-1 pipeline runs end to end on validation |
 | 5 | Full flow Data → Statistics → Optimiser → Compare → Decision; caching, validation, defaults, error messages | **G5** | Someone outside the group completes the flow without help in under 5 minutes; matched-risk machinery tested on synthetic frontiers with a known crossing |
@@ -720,7 +720,7 @@ Recorded so this document alone tells the reader where the project stands. A pha
 |---|---|---|
 | FE instructor sign-off (section 2.3) | **Complete** | Approval obtained before implementation |
 | OR prior permission for the QP/optimal-execution topic (section 2.3) | **Complete** | Permission obtained; topic accepted |
-| First Project Review (sections 2.4–2.5) | **Complete** | Presented and completed 2026-10-04; feedback incorporated; log in `docs/feedback_log.md` |
+| First Project Review (sections 2.4–2.5) | **Complete** | Presented and completed 2026-10-04; feedback incorporated into the current implementation |
 | CR dataset/group registration (section 2.3) | **Complete** | FI-2010 registered on the CR sheet |
 | Phase-1 audit A0–A8 | **Complete, facts recorded** | All checks pass on the real dataset (A7 N/A); the current report is `data/README.md` and the generated audit figures are in `results/figures/`. |
 | Scale recovery (A1) | **Complete** | Decimal-precision DecPre, global $k=6$: `price_euros = stored×100`, `vol_shares = stored×10^6` |
@@ -728,7 +728,7 @@ Recorded so this document alone tells the reader where the project stands. A pha
 | Splits | **Frozen** | Tag `splits-frozen`; `configs/splits.yaml`: calibration days 1–5, validation 6–7, test 8–9, reserve 10; purge gap 400 rows; $N_{\text{eff}}$ = 451/178/261 windows |
 | Phase-1 decision log | **Complete** | `docs/decision_log.md` |
 | **Implementation** | **Complete for the current tree** | `src/loader`, `src/data`, `src/cost`, `src/impact`, `src/models`, `src/sim`, `src/stats`, `src/benchmarks`, `src/reports`, and `run_experiment.py` are active code paths; obsolete duplicate modules were removed |
-| Test suite | **Active** | Model, loader, benchmark, simulator, report, CLI, and integration tests run with `ROTE_DATA_ROOT` set; correctness markers point to behavioral assertions |
+| Test suite | **Active** | Model, loader, benchmark, simulator, report, CLI, and integration tests run with the repository-local dataset when available and skip cleanly otherwise; correctness markers point to behavioral assertions |
 | UI (`app.py`) | **Implemented** | Five panels are wired to the shared contracts and simulator |
 | Gates G1–G8 | **Evidence-dependent** | Dataset-dependent gates require a local FI-2010 checkout and are not claimed from source tests alone |
 
@@ -736,7 +736,7 @@ Recorded so this document alone tells the reader where the project stands. A pha
 
 Hypotheses, primary tests and the acceptance rule are **fixed** by this file, and nothing in it is revised on the basis of test results. Before the single test-set run they may be changed for two reasons only: the Phase-1 audit outcome (section 4.1), which supplies the empirical facts the design depends on; or a factual error or internal inconsistency, which is a property of the text rather than a result. After the test run they are frozen, and any later change is labelled *post hoc* in the report.
 
-**Companion documents.** `ROADMAP.md` (approach, schedule, model menu) and `AGENTS.md` (engineering scaffold) are companions: where `ROADMAP.md` and this file differ on *what is due when*, `ROADMAP.md` governs; where they differ on *how something is measured or claimed*, this file governs. Design decisions are recorded in `docs/decision_log.md`, and review feedback in `docs/feedback_log.md`. Historical planning registers were retired once implementation was integrated.
+**Companion documents.** `ROADMAP.md` (approach, schedule, model menu) and `AGENTS.md` (engineering scaffold) are companions: where `ROADMAP.md` and this file differ on *what is due when*, `ROADMAP.md` governs; where they differ on *how something is measured or claimed*, this file governs. Design decisions are recorded in `docs/decision_log.md`. Historical planning registers were retired once implementation was integrated.
 
 ---
 
@@ -744,7 +744,7 @@ Hypotheses, primary tests and the acceptance rule are **fixed** by this file, an
 
 **Final presentation outline** (roadmap section 6):
 
-1. Problem, and **what changed since review 1** (feedback addressed — cite `docs/feedback_log.md`)
+1. Problem, and **what changed since review 1** (feedback addressed — cite the decision log and tests)
 2. Data and cleaning, including the stated assumptions (relative units, event time) — sections 4.1–4.2
 3. Liquidity statistics, as findings rather than charts
 4. Impact model calibration and out-of-sample validation — section 5, E0
@@ -783,7 +783,6 @@ ROTE/
 ├── data/README.md            # audit report (section 4.1) — regenerated in Week 1
 ├── docs/
 │   ├── decision_log.md       # design decisions
-│   ├── feedback_log.md       # review-1 feedback and disposition (section 2.5)
 ├── notebooks/rote_analysis.ipynb   # notebook UI (section 1.3)
 ├── src/
 │   ├── utils/contracts.py    # Order, Schedule, CostReport (section 7.2)

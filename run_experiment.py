@@ -12,9 +12,52 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 USAGE = (
-    "ROTE: use audit|freeze-splits|calibrate|frontier|check-formulation|figures|full "
-    "[--test --confirm]"
+    "ROTE: use setup|audit|freeze-splits|calibrate|evaluate|frontier|"
+    "check-formulation|figures|full "
+    "[setup options] [--test --confirm]"
 )
+
+
+def _cmd_setup(args: list[str]) -> int:
+    from src.data.setup import setup_dataset
+
+    archive = None
+    url = None
+    verify_only = False
+    force = False
+    i = 0
+    while i < len(args):
+        option = args[i]
+        if option == "--verify-only":
+            verify_only = True
+        elif option == "--force":
+            force = True
+        elif option in {"--url", "--zip"}:
+            if i + 1 >= len(args):
+                print(f"{option} requires a value")
+                return 2
+            if option == "--url":
+                url = args[i + 1]
+            else:
+                archive = Path(args[i + 1])
+            i += 1
+        else:
+            print(f"setup: unknown option {option!r}")
+            return 2
+        i += 1
+    try:
+        errors = setup_dataset(archive=archive, url=url, verify_only=verify_only, force=force)
+    except (OSError, ValueError) as exc:
+        print(f"setup failed: {exc}")
+        return 1
+    if errors:
+        for error in errors:
+            print(f"  - {error}")
+        return 1
+    print("Dataset files verified.")
+    if not verify_only:
+        print("Processed cache is ready under data/processed/.")
+    return 0
 
 
 def _cmd_audit(cfg: dict) -> int:
@@ -85,6 +128,19 @@ def _cmd_calibrate(cfg: dict) -> int:
     return 0
 
 
+def _cmd_evaluate(cfg: dict) -> int:
+    from src.loader.loader import STOCK_NAMES
+    from src.reports.evaluation_report import generate_evaluation_report
+
+    evaluation = cfg.get("execution", {}).get("evaluation", {})
+    theta = cfg.get("execution", {}).get("theta", [1.0])
+    validation_days = int(evaluation.get("day_blocks", {}).get("validation_days", 2))
+    days = list(range(8, 8 + validation_days))
+    path = generate_evaluation_report(STOCK_NAMES, days, theta)
+    print(f"Evaluation report written to {path}")
+    return 0
+
+
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
     args = list(sys.argv[1:] if argv is None else argv)
@@ -92,6 +148,8 @@ def main(argv=None) -> int:
         print(USAGE)
         return 0
     cmd = args[0]
+    if cmd == "setup":
+        return _cmd_setup(args[1:])
     if cmd == "audit":
         from config import load
 
@@ -108,6 +166,10 @@ def main(argv=None) -> int:
         from config import load
 
         return _cmd_calibrate(load())
+    if cmd == "evaluate":
+        from config import load
+
+        return _cmd_evaluate(load())
     if cmd == "frontier":
         from src.reports.generate_report import generate_all_reports_and_figures
 

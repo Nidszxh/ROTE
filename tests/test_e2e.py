@@ -13,7 +13,7 @@ from src.stats.stats import compute_statistics
 from src.utils.contracts import Order
 
 
-def test_end_to_end_pipeline():
+def test_end_to_end_pipeline(require_dataset):
     """Verify entire pipeline: loader -> stats -> all models -> simulate -> AHP."""
     # 1. Load data
     stock = STOCK_NAMES[0]

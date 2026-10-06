@@ -113,17 +113,75 @@ def solve_m4(
     book: Mapping[str, Any] | None = None,
     params: Mapping[str, Any] | None = None,
 ) -> Schedule:
-    """
-    AHP Multi-Criteria Decision Framework (M4).
+    """Select a candidate schedule with a four-criterion AHP.
 
-    Produces a valid baseline execution schedule while the pairwise
-    preference evaluation is driven interactively in the Decision interface.
+    ``params`` may provide ``candidate_schedules`` and ``candidate_criteria``.
+    Criteria are ordered cost, risk, completion, simplicity; lower is better
+    for the first two and higher is better for the latter two.  A 4x4
+    reciprocal ``criteria_matrix`` controls the criterion weights.
     """
     if order.size <= 0:
         raise ValueError(f"Order size must be positive, got {order.size}")
     if order.horizon < 1:
         raise ValueError(f"Order horizon must be >= 1, got {order.horizon}")
 
-    # Default uniform schedule for M4 wrapper
-    shares = np.full(order.horizon, order.size / order.horizon, dtype=float)
-    return Schedule(shares=shares)
+    settings = dict(params or {})
+    candidates = settings.get("candidate_schedules")
+    if candidates is None:
+        # Preserve the useful baseline contract when no decision inputs exist.
+        return Schedule(np.full(order.horizon, order.size / order.horizon, dtype=float))
+    if not isinstance(candidates, Mapping) or not candidates:
+        raise ValueError("candidate_schedules must be a non-empty mapping")
+
+    names = list(candidates)
+    arrays = {}
+    for name in names:
+        value = candidates[name]
+        values = value.shares if isinstance(value, Schedule) else np.asarray(value, dtype=float)
+        if values.shape != (order.horizon,) or np.any(~np.isfinite(values)) or np.any(values < 0):
+            raise ValueError(
+                f"candidate {name!r} must contain {order.horizon} finite non-negative shares"
+            )
+        if not np.isclose(values.sum(), order.size, rtol=1e-6, atol=1e-6):
+            raise ValueError(f"candidate {name!r} must conserve the order size")
+        arrays[name] = values
+
+    criteria = settings.get("candidate_criteria")
+    if criteria is None:
+        raise ValueError("candidate_criteria is required with candidate_schedules")
+    if not isinstance(criteria, Mapping) or set(criteria) != set(names):
+        raise ValueError("candidate_criteria must contain exactly the candidate names")
+    matrix = settings.get("criteria_matrix", np.ones((4, 4), dtype=float))
+    matrix, n = _validate_ahp_matrix(matrix)
+    if n != 4 or not np.allclose(matrix * matrix.T, 1.0, atol=1e-8):
+        raise ValueError("criteria_matrix must be a 4x4 reciprocal positive matrix")
+    criterion_weights = ahp_weights(matrix)
+    values = np.asarray([criteria[name] for name in names], dtype=float)
+    if values.shape != (len(names), 4) or np.any(~np.isfinite(values)) or np.any(values <= 0):
+        raise ValueError("each candidate must have four positive finite criterion values")
+    priorities = np.empty_like(values)
+    priorities[:, :2] = 1.0 / values[:, :2]
+    priorities[:, 2:] = values[:, 2:]
+    priorities /= priorities.sum(axis=0, keepdims=True)
+    scores = priorities @ criterion_weights
+    winner = int(np.argmax(scores))
+    return Schedule(arrays[names[winner]])
+
+
+def ahp_sensitivity(
+    candidate_criteria: np.ndarray,
+    criteria_matrix: np.ndarray,
+    weight_grid: np.ndarray | None = None,
+) -> np.ndarray:
+    """Return winners for a grid of criterion-weight perturbations."""
+    values = np.asarray(candidate_criteria, dtype=float)
+    matrix, n = _validate_ahp_matrix(criteria_matrix)
+    if n != 4 or values.ndim != 2 or values.shape[1] != 4:
+        raise ValueError("sensitivity inputs must contain four criteria")
+    default_grid = ahp_weights(matrix)[None, :]
+    grid = np.asarray(weight_grid if weight_grid is not None else default_grid, dtype=float)
+    if grid.ndim != 2 or grid.shape[1] != 4 or np.any(grid <= 0):
+        raise ValueError("weight_grid must be a positive (n, 4) array")
+    priorities = np.column_stack((1.0 / values[:, :2], values[:, 2:]))
+    priorities /= priorities.sum(axis=0, keepdims=True)
+    return np.argmax(priorities @ (grid / grid.sum(axis=1, keepdims=True)).T, axis=0)

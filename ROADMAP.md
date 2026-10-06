@@ -98,7 +98,7 @@ Default: 8 weeks. **If your final presentation is sooner, use the compression ru
 - #1: loader plus version/normalisation check, first validation (bid < ask, monotone levels).
 - #2: draft the walk-the-book cost function on a sample day.
 - #3 and #4: write M1 and M2 on a toy order book so they are ready to plug in.
-- **Exit:** `load_day()` works for all 5 stocks and 10 days; contract merged; review-1 feedback listed in `docs/feedback_log.md`.
+- **Exit:** `load_day()` works for all 5 stocks and 10 days; the shared contract is covered by tests.
 
 ### Week 2: Statistics and impact model
 - #1: stats module (spread, depth by level, imbalance, mid-price returns, volatility) plus the Statistics tab.

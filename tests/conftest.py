@@ -1,6 +1,16 @@
 import numpy as np
 import pytest
 
+from src.loader.loader import resolve_data_root
+
+
+@pytest.fixture
+def require_dataset():
+    try:
+        resolve_data_root({})
+    except FileNotFoundError:
+        pytest.skip("FI-2010 dataset is not available; run `setup` first")
+
 
 @pytest.fixture
 def synthetic_lob():

@@ -1,0 +1,27 @@
+{
+  "dataset": "FI-2010",
+  "source": "https://etsin.fairdata.fi/dataset/73eb48d7-4dbc-4a10-a52a-da745b47a649/data",
+  "license": "CC BY 4.0",
+  "files": [
+    {
+      "name": "Train_Dst_NoAuction_DecPre_CF_7.txt",
+      "size": 607324298,
+      "sha256": "11af4bbcf26f08a43a436c43619bdf772f552870d54a3b06de7b5344957279fc"
+    },
+    {
+      "name": "Test_Dst_NoAuction_DecPre_CF_7.txt",
+      "size": 132259850,
+      "sha256": "1acd92e13df8f499aa9475729e1d54455db1ab37894616d0c582cdd012351273"
+    },
+    {
+      "name": "Test_Dst_NoAuction_DecPre_CF_8.txt",
+      "size": 124378346,
+      "sha256": "950559383a3cf823fd373e6573434cc00c94b9bceac77fe5ee9f1adb38e1abb2"
+    },
+    {
+      "name": "Test_Dst_NoAuction_DecPre_CF_9.txt",
+      "size": 76138106,
+      "sha256": "c09785b0aed0825ad566f8fe33a3b7d8c3fbb8993856d162976cb4e1c410aca0"
+    }
+  ]
+}

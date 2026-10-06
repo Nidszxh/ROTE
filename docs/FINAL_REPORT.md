@@ -39,7 +39,6 @@ The report generator produces the current benchmark table and figures in
 ## Reproducibility
 
 ```bash
-export ROTE_DATA_ROOT="$HOME/data/FI-2010"
 uv pip install -r pyproject.toml --extra dev
 uv run --no-sync ruff check .
 uv run --no-sync ruff format --check .

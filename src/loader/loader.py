@@ -1,3 +1,4 @@
+import json
 import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -236,7 +237,12 @@ def load_day(stock: str, day: int) -> tuple[Lob, int, bool]:
         raise ValueError(f"unknown stock {stock!r}; expected one of {STOCK_NAMES}")
 
     if day <= 7:
-        _, lob, boundaries = load_train_lob(config)
+        train_path = resolve_train_file(config)
+        cached = _load_cached_lob(train_path)
+        if cached is None:
+            _, lob, boundaries = load_train_lob(config)
+        else:
+            lob, boundaries = cached
         if stock_idx >= len(boundaries) - 1:
             stock_idx = len(boundaries) - 2
         start = boundaries[stock_idx]
@@ -248,7 +254,12 @@ def load_day(stock: str, day: int) -> tuple[Lob, int, bool]:
         lob_slice = {k: v[s:e] for k, v in lob.items()}
         return lob_slice, day, False
     else:
-        _, lob, boundaries = load_test_lob(config, day)
+        test_path = resolve_test_file(config, day=day)
+        cached = _load_cached_lob(test_path)
+        if cached is None:
+            _, lob, boundaries = load_test_lob(config, day)
+        else:
+            lob, boundaries = cached
         # Note: If test file has multiple stocks (which FI-2010 test files actually do!),
         # we still segment it based on mid price jumps
         jumps = find_stock_boundaries(lob["M"])
@@ -259,3 +270,21 @@ def load_day(stock: str, day: int) -> tuple[Lob, int, bool]:
         else:
             lob_slice = lob
         return lob_slice, day, True
+
+
+def _load_cached_lob(source: Path) -> tuple[Lob, list[int]] | None:
+    """Load a processed cache when it is newer than its source file."""
+    candidates = [Path("data/processed"), source.parent.parent / "processed"]
+    for cache_root in candidates:
+        cache_path = cache_root / f"{source.stem}.npz"
+        metadata_path = cache_path.with_suffix(".json")
+        if not cache_path.is_file() or not metadata_path.is_file():
+            continue
+        if cache_path.stat().st_mtime < source.stat().st_mtime:
+            continue
+        with metadata_path.open(encoding="utf-8") as stream:
+            metadata = json.load(stream)
+        with np.load(cache_path) as archive:
+            lob = {key: archive[key] for key in archive.files}
+        return lob, [int(edge) for edge in metadata["boundaries"]]
+    return None
