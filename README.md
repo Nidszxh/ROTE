@@ -44,33 +44,38 @@ ROTE/
 │   ├── optimize/               # Static quadratic schedule formulation
 │   ├── evaluation/             # Multi-window evaluation and confidence intervals
 │   ├── models/
-│   │   ├── __init__.py         # Model package exports (M1-M4)
+│   │   ├── __init__.py         # Model package exports (M1-M4, ROTE-Static)
 │   │   ├── m1_ac.py            # M1: Almgren-Chriss (closed-form + cvxpy)
 │   │   ├── m2_lp.py            # M2: LOB LP/QP & shadow prices
 │   │   ├── m3_mip.py           # M3: Fixed-charge Mixed-Integer Program
-│   │   └── m4_ahp.py           # M4: AHP Multi-Criteria Decision Framework
+│   │   ├── m4_ahp.py           # M4: AHP Multi-Criteria Decision Framework
+│   │   └── rote_static.py      # ROTE-Static: Arrival-state QP execution model
 │   ├── benchmarks/
 │   │   ├── __init__.py         # Benchmark package exports
 │   │   └── baselines.py        # TWAP, Depth-Proportional, and VWAP-proxy
 │   ├── sim/                    # Unified execution simulator & cost reporter
 │   ├── reports/
-│   │   ├── visualizations.py   # Publication-grade chart generation suite
-│   │   └── generate_report.py  # Report compiler & artifact export pipeline
+│   │   ├── generate_report.py  # Report compiler & artifact export pipeline
+│   │   ├── paper_figures.py    # 300 DPI research paper figure generator
+│   │   └── visualizations.py   # Publication-grade chart generation suite
 │   └── utils/
 │       └── contracts.py        # Order, Schedule, and CostReport data classes
 ├── tests/
-│   ├── test_models.py          # Unit tests for M1, M2, M3, M4
+│   ├── test_models.py          # Unit tests for M1, M2, M3, M4, ROTE-Static
 │   ├── test_baselines.py       # Unit tests for benchmarks
 │   ├── test_visualizations.py  # Unit tests for visualization rendering
 │   ├── test_e2e.py             # Full end-to-end integration tests
+│   ├── test_t.py               # T1-T17 mathematical correctness assertions
 │   └── test_basic.py           # Sanity and contract checks
 ├── results/
-│   ├── MODEL_EXECUTION_REPORT.md  # Compiled analysis and metrics report
-│   ├── tables/calibration.json    # Persisted eta_0 estimates
-│   └── figures/*.png              # High-resolution publication figures
+│   ├── EVALUATION_REPORT.md    # Multi-window bootstrap & Holm evaluation report
+│   ├── MODEL_EXECUTION_REPORT.md # Compiled analysis and metrics report
+│   ├── tables/calibration.json # Persisted eta_0 estimates
+│   └── figures/                # 300 DPI publication figures
+│       ├── fig_paper_empirical_results.png # 4-panel research paper figure
+│       └── fig1-fig6_*.png     # Audit and microstructure figures
 └── docs/
-    ├── ARCHITECTURE.md        # Current data-to-decision architecture
-    ├── decision_log.md         # Architecture decision records
+    ├── ARCHITECTURE.md         # Current data-to-decision architecture
     ├── FINAL_REPORT.md         # Full project report and findings
     └── PRESENTATION_DECK.md    # 8-slide presentation deck outline
 ```
@@ -80,7 +85,7 @@ ROTE/
 ## 3. Quick Start & Execution
 
 ### Environment Setup
-Python **3.11+** (tested on 3.12). Using [`uv`](https://docs.astral.sh/uv/):
+Python **3.11+** (tested on 3.12 and 3.13). Using [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
 # Install dependencies into virtual environment
@@ -112,7 +117,7 @@ Launch the 5-tab Streamlit dashboard:
 uv run --no-sync streamlit run app.py
 ```
 Tabs included:
-1. **1. Data**: Select stock (KESK1, OUT1V, SAMPO, RVI1V, WRT1V) and trading day (1–10).
+1. **1. Data**: Select stock (KESBV, OUT1V, SAMPO, RTRKS, WRT1V) and trading day (1–10).
 2. **2. Statistics**: On-demand liquidity statistics (spread, depth by level, order imbalance, volatility).
 3. **3. Optimiser**: Interactive solver parameter controls for M1, M2, and M3 with schedule plots.
 4. **4. Compare**: Multi-strategy overlay and performance metrics table (Shortfall bps, Std, Trades).
@@ -122,9 +127,10 @@ Tabs included:
 Compile the publication figures and generate the Markdown executive report:
 ```bash
 uv run --no-sync python -m src.reports.generate_report
+uv run --no-sync python run_experiment.py figures
 ```
 Artifacts generated:
-- Figures saved to `results/figures/` (LOB depth ladder, microstructure dashboard, M1 efficient frontier, M2 shadow prices, M3 ticket fee trade-off, benchmark Pareto scatter, AHP ranking).
+- Figures saved to `results/figures/` (LOB depth ladder, microstructure dashboard, M1 efficient frontier, M2 shadow prices, M3 ticket fee trade-off, benchmark Pareto scatter, AHP ranking, and the 4-panel research figure `fig_paper_empirical_results.png`).
 - Executive Markdown report saved to `results/MODEL_EXECUTION_REPORT.md`.
 
 Run the multi-stock evaluation configured in `configs/experiment.yaml`:
@@ -134,11 +140,11 @@ uv run --no-sync python run_experiment.py evaluate
 ```
 
 The evaluation report is written to `results/EVALUATION_REPORT.md` and includes bootstrap
-confidence intervals and Holm-corrected paired comparisons.
+confidence intervals and Holm-corrected paired comparisons across $n = 176$ non-overlapping windows.
 
 ### Running Test Suites
 ```bash
-# Run the complete quality gate
+# Run the complete quality gate (110 tests passing)
 uv run --no-sync ruff check .
 uv run --no-sync ruff format --check .
 uv run --no-sync pytest
@@ -203,9 +209,21 @@ $$\min_{q, z} \sum_{t=1}^T \sum_{l=1}^L (P^a_{t,l} - M_t) q_{t,l} + c_f \sum_{t=
 Subject to:
 $$L_{\min} z_t \le \sum_{l=1}^L q_{t,l} \le Q z_t, \quad z_t \in \{0, 1\}, \quad \sum_{t=1}^T z_t \le K$$
 
+### ROTE-Static: Arrival-State QP Execution Model
+Ablation model linking M1 and M2 by freezing the order book at arrival snapshot $t=0$:
+$$\min_{\tilde{q}, \tilde{y}, u} \sum_{t=1}^T \sum_{l=1}^{10} \frac{P^a_{0,l} - M_0}{M_0} \tilde{q}_{t,l} + \lambda \sum_{t=1}^T \frac{\sigma_t^2}{M_0^2} \tilde{y}_t^2 + \psi u$$
+Subject to static arrival depth capacities, inventory flow conservation, and participation limits.
+
 ### M4: Analytic Hierarchy Process (AHP)
 Evaluates candidate schedules across multiple objectives (Cost, Risk, Completion, Simplicity). Computes normalized priority weights via the principal eigenvector and verifies consistency:
 $$CI = \frac{\lambda_{\max} - n}{n - 1}, \quad CR = \frac{CI}{RI} < 0.10$$
+
+### Publication-Grade Empirical Research Figure
+The generated 4-panel research figure in `results/figures/fig_paper_empirical_results.png` provides:
+1. **(a) Empirical Risk-Cost Frontier**: 2D bootstrap ellipses showing M2 Pareto dominance over TWAP and Immediate execution.
+2. **(b) Impact Non-Linear Scaling**: Cost expansion as order size scales across $\Theta \in [0.25, 5.0]$.
+3. **(c) Ranked Execution Cost**: Horizontal forest plot with 95% bootstrap confidence intervals ($n=176$).
+4. **(d) Treatment Effect Forest Plot**: Paired differences with Holm-Bonferroni significance testing.
 
 ---
 

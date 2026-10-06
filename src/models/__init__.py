@@ -25,6 +25,9 @@ from src.models.m4_ahp import (
     ahp_weights,
     solve_m4,
 )
+from src.models.rote_static import (
+    solve_rote_static,
+)
 
 __all__ = [
     "ac_classical_closed_form",
@@ -37,4 +40,5 @@ __all__ = [
     "solve_m2",
     "solve_m3",
     "solve_m4",
+    "solve_rote_static",
 ]

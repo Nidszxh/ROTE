@@ -19,6 +19,7 @@ from src.models.m1_ac import solve_m1
 from src.models.m2_lp import solve_m2
 from src.models.m3_mip import solve_m3
 from src.models.m4_ahp import ahp_consistency_ratio, ahp_weights
+from src.models.rote_static import solve_rote_static
 from src.reports.visualizations import (
     plot_ahp_ranking,
     plot_benchmark_frontier,
@@ -202,6 +203,10 @@ if "lob_slice" not in st.session_state:
 
 cfg = cached_config()
 st.title("ROTE — Risk-Aware Optimal Trade Execution")
+st.caption(
+    "**Frozen Split Governance:** Calibration = Days 1–5 | Validation = Days 6–7 | "
+    "Test = Days 8–9 (Gated) | Reserve = Day 10 (Protocol Locked)"
+)
 tabs = st.tabs(["1. Data", "2. Statistics", "3. Optimiser", "4. Compare", "5. Decision"])
 
 with tabs[0]:
@@ -286,6 +291,7 @@ with tabs[2]:
                 "M1 (Almgren-Chriss)",
                 "M2 (LOB LP)",
                 "M3 (Fixed-Charge MIP)",
+                "ROTE-Static",
                 "TWAP",
                 "Depth-Proportional",
                 "VWAP (Proxy)",
@@ -343,6 +349,8 @@ with tabs[2]:
                     schedule = solve_m2(order, sampled, params)
                 elif model.startswith("M3"):
                     schedule = solve_m3(order, sampled, params)
+                elif model == "ROTE-Static":
+                    schedule = solve_rote_static(order, sampled, params)
                 elif model == "TWAP":
                     schedule = twap_plan(order)
                 elif model == "VWAP (Proxy)":
@@ -375,7 +383,7 @@ with tabs[2]:
             if result_model.startswith("M1"):
                 diagnostic, _ = plot_m1_frontier(result_order, result_book)
                 st.pyplot(diagnostic)
-            elif result_model.startswith("M2"):
+            elif result_model.startswith("M2") or result_model == "ROTE-Static":
                 st.pyplot(plot_m2_diagnostics(result_order, result_book, rho=rho))
             elif result_model.startswith("M3"):
                 st.pyplot(plot_m3_tradeoff(result_order, result_book))
@@ -415,19 +423,25 @@ with tabs[3]:
                 "M1": solve_m1(order, sampled, params),
                 "M2": solve_m2(order, sampled, params),
                 "M3": solve_m3(order, sampled, params),
+                "ROTE-Static": solve_rote_static(order, sampled, params),
                 "TWAP": twap_plan(order),
                 "Depth-Prop": depth_proportional_plan(order, sampled),
                 "VWAP Proxy": vwap_proxy_plan(order, sampled),
             }
-            records = [
-                {
-                    "Model": name,
-                    "Shortfall (bps)": simulate(plan, sampled, params).shortfall_bps,
-                    "Risk (std)": simulate(plan, sampled, params).std,
-                    "Trades": simulate(plan, sampled, params).trades,
-                }
-                for name, plan in models.items()
-            ]
+            records = []
+            for name, plan in models.items():
+                rep = simulate(plan, sampled, params)
+                comp_pct = max(0.0, min(100.0, (1.0 - rep.unfilled_shares / max(Q, 1e-6)) * 100.0))
+                records.append(
+                    {
+                        "Model": name,
+                        "Shortfall (bps)": rep.shortfall_bps,
+                        "Risk (std)": rep.std,
+                        "Trades": rep.trades,
+                        "Unfilled (shares)": rep.unfilled_shares,
+                        "Completion (%)": comp_pct,
+                    }
+                )
             st.session_state.compare_results = pd.DataFrame(records)
             st.session_state.schedules_dict = {name: plan.shares for name, plan in models.items()}
         if st.session_state.compare_results is not None:
@@ -500,14 +514,24 @@ with tabs[4]:
         )
         weights = ahp_weights(matrix)
         df = st.session_state.compare_results.copy()
-        for source, target in [
-            ("Shortfall (bps)", "norm_cost"),
-            ("Risk (std)", "norm_risk"),
-            ("Trades", "norm_simp"),
-        ]:
-            values = 1.0 / (df[source].abs() + 1e-4)
-            df[target] = values / values.sum()
-        df["norm_completion"] = 1.0 / len(df)
+        # 1. Cost: lower shortfall is preferred
+        min_cost = df["Shortfall (bps)"].min()
+        cost_offset = max(0.0, -min_cost) + 1.0
+        cost_utility = 1.0 / (df["Shortfall (bps)"] + cost_offset)
+        df["norm_cost"] = cost_utility / cost_utility.sum()
+
+        # 2. Risk: lower variance/std is preferred
+        risk_utility = 1.0 / (df["Risk (std)"].abs() + 1e-4)
+        df["norm_risk"] = risk_utility / risk_utility.sum()
+
+        # 3. Completion: higher completion percentage is preferred
+        comp_utility = df["Completion (%)"].clip(lower=0.1)
+        df["norm_completion"] = comp_utility / comp_utility.sum()
+
+        # 4. Simplicity: fewer trades is preferred
+        simp_utility = 1.0 / (df["Trades"].clip(lower=1))
+        df["norm_simp"] = simp_utility / simp_utility.sum()
+
         df["Score"] = (
             df["norm_cost"] * weights[0]
             + df["norm_risk"] * weights[1]

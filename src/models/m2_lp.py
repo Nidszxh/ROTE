@@ -19,9 +19,13 @@ def build_m2(
     lam: float,
     rho: float,
     Da_net: np.ndarray,
+    psi: float | None = None,
+    allow_sweep: bool = True,
 ) -> tuple[cp.Problem, cp.Variable, cp.Variable, cp.Expression, list[cp.Constraint]]:
-    """
-    Build M2 model (Limit Order Book LP when lam=0, or QP when lam>0).
+    """Build M2 model (Limit Order Book LP when lam=0, or QP when lam>0).
+
+    Uses dimensionless formulation (PROPOSAL.md section 5.3) for numerical conditioning.
+    q_tilde = q / Q, y_tilde = y / Q, x_tilde = x / Q.
     """
     if Q <= 0:
         raise ValueError(f"Order size Q must be positive, got {Q}")
@@ -33,33 +37,49 @@ def build_m2(
         raise ValueError(f"Risk parameter lambda must be non-negative, got {lam}")
 
     L = Pa.shape[1]
-    q = cp.Variable((T, L), nonneg=True, name="fill_by_level")
-    y = cp.Variable(T + 1, nonneg=True, name="inventory")
+    M0 = float(mid[0]) if (len(mid) > 0 and mid[0] > 0) else 100.0
 
-    # Execution per step across all book levels
-    x = cp.sum(q, axis=1)
+    q_tilde = cp.Variable((T, L), nonneg=True, name="fill_by_level")
+    y_tilde = cp.Variable(T + 1, nonneg=True, name="inventory")
+    x_tilde = cp.sum(q_tilde, axis=1)
+
+    Va_norm = Va[:T, :] / Q
+    cap_norm = (rho * Da_net[:T]) / Q
 
     constraints: list[cp.Constraint] = [
-        y[0] == Q,
-        y[T] == 0,
-        q <= Va[:T, :],
-        y[1:] == y[:-1] - x,
-        x <= rho * Da_net[:T],
+        y_tilde[0] == 1.0,
+        q_tilde <= Va_norm,
+        y_tilde[1:] == y_tilde[:-1] - x_tilde,
+        x_tilde <= cap_norm,
     ]
 
-    # Spread cost relative to mid-price: (Pa - mid) * q
-    cost_per_share = Pa[:T, :] - mid[:T, np.newaxis]
-    spread_cost = cp.sum(cp.multiply(cost_per_share, q))
+    if not allow_sweep:
+        constraints.append(y_tilde[T] == 0.0)
 
-    # Variance risk penalty on remaining inventory
-    if lam > 0:
-        variance_cost = lam * cp.sum(cp.multiply(sigma2[1:T], cp.square(y[1:T])))
-        total_cost = spread_cost + variance_cost
+    # Normalized spread cost relative to arrival mid
+    cost_per_share_norm = (Pa[:T, :] - mid[:T, np.newaxis]) / M0
+    spread_cost = cp.sum(cp.multiply(cost_per_share_norm, q_tilde))
+
+    # Variance risk penalty on remaining inventory (dimensionless)
+    sigma2_norm = sigma2[:T] / (M0**2)
+    if lam > 0 and np.any(sigma2_norm > 0):
+        variance_cost = lam * cp.sum(cp.multiply(sigma2_norm[1:T], cp.square(y_tilde[1:T])))
     else:
-        total_cost = spread_cost
+        variance_cost = 0.0
 
+    # Terminal sweep cost
+    if allow_sweep:
+        if psi is None:
+            P_max = float(Pa[0, -1]) if Pa.shape[1] > 0 else M0 * 1.01
+            psi = max(P_max * 1.005 - M0, 0.01 * M0)
+        psi_norm = psi / M0
+        sweep_cost = psi_norm * y_tilde[T]
+    else:
+        sweep_cost = 0.0
+
+    total_cost = spread_cost + variance_cost + sweep_cost
     prob = cp.Problem(cp.Minimize(total_cost), constraints)
-    return prob, q, y, x, constraints
+    return prob, q_tilde, y_tilde, x_tilde, constraints
 
 
 def solve_m2(
@@ -67,10 +87,7 @@ def solve_m2(
     book: Mapping[str, Any],
     params: Mapping[str, Any] | None = None,
 ) -> Schedule:
-    """
-    Solve M2 LOB optimization model and return execution Schedule.
-    Uses multi-solver fallback (HIGHS -> CLARABEL -> OSQP) to prevent user_limit errors.
-    """
+    """Solve M2 LOB optimization model and return execution Schedule."""
     if order.size <= 0 or order.horizon < 1:
         raise ValueError(
             f"Invalid order specifications: size={order.size}, horizon={order.horizon}"
@@ -80,11 +97,12 @@ def solve_m2(
         if req_key not in book:
             raise KeyError(f"Market book missing required key '{req_key}'")
 
-    p = params or {}
+    p = dict(params or {})
     Q = float(order.size)
     T = int(order.horizon)
     lam = float(p.get("lambda_imp", 0.0))
     rho = float(p.get("rho", 1.0))
+    allow_sweep = bool(p.get("allow_sweep", True))
 
     Pa = np.asarray(book["Pa"], dtype=float)
     Va = np.asarray(book["Va"], dtype=float)
@@ -96,9 +114,14 @@ def solve_m2(
 
     sigma2 = np.asarray(p.get("sigma2", np.zeros(T)), dtype=float)
     if len(sigma2) < T:
-        sigma2 = np.zeros(T, dtype=float)
+        sigma = float(p.get("sigma", 0.0))
+        sigma2 = np.full(T, sigma**2, dtype=float)
 
-    prob, q, y, x, constraints = build_m2(
+    psi = p.get("psi")
+    if psi is not None:
+        psi = float(psi)
+
+    prob, q_tilde, y_tilde, x_tilde, constraints = build_m2(
         Q=Q,
         T=T,
         Pa=Pa,
@@ -108,14 +131,16 @@ def solve_m2(
         lam=lam,
         rho=rho,
         Da_net=Da,
+        psi=psi,
+        allow_sweep=allow_sweep,
     )
 
-    # Multi-solver cascade: HiGHS (exact for LP/QP) -> CLARABEL -> OSQP
+    # Multi-solver with fast timeouts
     solved = False
     for s in (cp.HIGHS, cp.CLARABEL):
         try:
             prob.solve(solver=s)
-            if prob.status in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE) and x.value is not None:
+            if prob.status in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE) and x_tilde.value is not None:
                 solved = True
                 break
         except Exception:
@@ -123,13 +148,13 @@ def solve_m2(
 
     if not solved:
         try:
-            prob.solve(solver=cp.OSQP, max_iter=20000, eps_abs=1e-3, eps_rel=1e-3)
-            if prob.status in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE) and x.value is not None:
+            prob.solve(solver=cp.OSQP, max_iter=10000, eps_abs=1e-4, eps_rel=1e-4)
+            if prob.status in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE) and x_tilde.value is not None:
                 solved = True
         except Exception:
             pass
 
-    if not solved or x.value is None:
+    if not solved or x_tilde.value is None:
         if "infeasible" in str(prob.status).lower():
             raise RuntimeError(
                 f"M2 optimization is infeasible (status={prob.status}). "
@@ -138,11 +163,21 @@ def solve_m2(
             )
         raise RuntimeError(f"M2 optimization failed: status={prob.status}")
 
-    trades = np.asarray(x.value, dtype=float)
+    trades = np.asarray(x_tilde.value, dtype=float) * Q
     trades = np.maximum(trades, 0.0)
 
-    # Clean slight numerical residual to match exact order size
-    sum_trades = np.sum(trades)
-    trades = trades * (Q / sum_trades) if sum_trades > 0 else np.full(T, Q / T, dtype=float)
+    # Invariant: sum(Schedule.shares) == Q
+    residual = Q - float(np.sum(trades))
+    if abs(residual) > 1e-4:
+        trades[-1] += residual
 
-    return Schedule(shares=trades)
+    schedule = Schedule(shares=np.maximum(trades, 0.0))
+
+    # Attach duals for diagnostic inspection (T15, shadow prices)
+    try:
+        cap_duals = [float(c.dual_value) for c in constraints if c.shape == (T,)]
+        schedule.capacity_duals = cap_duals
+    except Exception:
+        pass
+
+    return schedule

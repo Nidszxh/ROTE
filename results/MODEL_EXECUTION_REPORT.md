@@ -1,14 +1,14 @@
 # ROTE: Comprehensive Model Execution & Microstructure Report
-**Asset**: Kesko (KESBV) | **Test Period**: Day 8 | **Size**: 5000 shares ($T=20$)
+**Asset**: Kesko (KESBV) | **Test Period**: Day 6 | **Size**: 5000 shares ($T=20$)
 
 ---
 
 ## 1. Microstructure Environment
-- **Average Half-Spread**: 10.54 bps
-- **Average Ask Depth**: 51902 shares
-- **Average Bid Depth**: 48713 shares
-- **Order Book Imbalance (Mean)**: -0.0389
-- **Short-Term Volatility**: 15.86 bps/period
+- **Average Half-Spread**: 13.81 bps
+- **Average Ask Depth**: 50006 shares
+- **Average Bid Depth**: 53725 shares
+- **Order Book Imbalance (Mean)**: 0.0373
+- **Short-Term Volatility**: 19.87 bps/period
 
 ![LOB Depth Ladder](figures/lob_depth_ladder.png)
 ![Microstructure Dashboard](figures/microstructure_dashboard.png)
@@ -19,12 +19,13 @@
 
 | Model | Implementation Shortfall (bps) | Timing Risk (Std Dev) | Active Trades |
 | :--- | :---: | :---: | :---: |
-| **M1** | 43.52 | 5.44 | 20 |
-| **M2** | 50.41 | 0.69 | 2 |
-| **M3** | 50.41 | 0.69 | 2 |
-| **TWAP** | 43.55 | 5.44 | 20 |
-| **Depth-Prop** | 44.15 | 5.41 | 20 |
-| **VWAP Proxy** | 44.27 | 5.46 | 20 |
+| **M1** | 26.14 | 6.55 | 20 |
+| **M2** | 59.15 | 0.00 | 1 |
+| **M3** | 59.15 | 0.00 | 1 |
+| **ROTE-Static** | 26.21 | 6.55 | 20 |
+| **TWAP** | 26.25 | 6.55 | 20 |
+| **Depth-Prop** | 31.58 | 6.55 | 20 |
+| **VWAP Proxy** | 27.45 | 6.55 | 20 |
 
 ![Benchmark Frontier Comparison](figures/benchmark_frontier_comparison.png)
 

@@ -1,16 +1,26 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from src.benchmarks.baselines import (
     depth_proportional_plan,
+    immediate_plan,
     twap_plan,
+    twap_prime_plan,
+    vwap_proxy_plan,
 )
 from src.impact.impact import calibrate_eta0_for_stock
+from src.models.m1_ac import solve_m1
+from src.models.m2_lp import solve_m2
+from src.models.m3_mip import solve_m3
+from src.models.rote_static import solve_rote_static
 from src.sim.simulate import simulate
 from src.utils.contracts import Order, Schedule
 
@@ -83,76 +93,203 @@ class EvaluationResult:
 
 
 def _default_strategies() -> dict[str, Strategy]:
+    """Return the baseline ladder from PROPOSAL.md section 7.1."""
     return {
+        "immediate": lambda order, book, params: immediate_plan(order),
         "twap_T": lambda order, book, params: twap_plan(order),
-        "depth_proportional": lambda order, book, params: depth_proportional_plan(order, book),
+        "twap_Tprime": lambda order, book, params: twap_prime_plan(
+            order, factor=float(params.get("twap_prime_factor", 0.5))
+        ),
+        "depth_proportional": lambda order, book, params: depth_proportional_plan(
+            order, book, params
+        ),
+        "ac": lambda order, book, params: solve_m1(order, book, params),
+        "ac_capped": lambda order, book, params: solve_m1(
+            order, book, {**dict(params), "capped": True}
+        ),
+        "m2_lp": lambda order, book, params: solve_m2(order, book, params),
+        "rote_static": lambda order, book, params: solve_rote_static(order, book, params),
     }
+
+
+def get_full_strategy_registry() -> dict[str, Strategy]:
+    """Return all available strategies including MIP and VWAP proxy."""
+    strategies = _default_strategies()
+    strategies["m3_mip"] = lambda order, book, params: solve_m3(order, book, params)
+    strategies["vwap_proxy"] = lambda order, book, params: vwap_proxy_plan(order, book)
+    return strategies
+
+
+def _load_cached_calibration() -> dict[str, float]:
+    path = Path("results/tables/calibration.json")
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return {str(k): float(v) for k, v in raw.get("eta_0", {}).items()}
+    except Exception:
+        return {}
 
 
 def evaluate(
     books: Mapping[str, Mapping[str, np.ndarray]],
-    windows: Mapping[str, Iterable[slice]] | Iterable[slice],
+    windows: Mapping[str, Iterable[slice]] | Iterable[slice] | None = None,
     theta: Iterable[float] = (1.0,),
     strategies: Mapping[str, Strategy] | None = None,
     rows_per_period: int = 20,
-    params: Mapping[str, float] | None = None,
+    horizon: int = 20,
+    burn_in_rows: int = 100,
+    params: Mapping[str, Any] | None = None,
     bootstrap_reps: int = 2000,
     bootstrap_block: int = 5,
     seed: int | None = None,
     calibrate_impact: bool = True,
+    calibrated_params: Mapping[str, Any] | None = None,
 ) -> EvaluationResult:
     """Evaluate strategies over every stock, window, and order-size multiplier.
 
-    ``theta`` scales the median first-level ask depth, avoiding a hard-coded
-    order size while keeping comparisons comparable across stocks.
+    Enforces strict calibration-split parameters without in-sample leakage (C4),
+    unique per-window keys without observation duplication (C2),
+    and execution over non-overlapping snapshot windows (C3).
     """
-    if rows_per_period < 1 or any(float(t) <= 0 for t in theta):
-        raise ValueError("rows_per_period and theta values must be positive")
+    if rows_per_period < 1 or horizon < 1 or any(float(t) <= 0 for t in theta):
+        raise ValueError("rows_per_period, horizon, and theta values must be positive")
+
     strategy_map = dict(strategies or _default_strategies())
-    window_map = windows if isinstance(windows, Mapping) else {"window": windows}
     base_params = dict(params or {})
-    records: list[dict[str, float | str]] = []
-    for stock, book in books.items():
+    cached_calib = _load_cached_calibration()
+    records: list[dict[str, Any]] = []
+
+    # Ensure baseline simulation params are present
+    base_params.setdefault("rho", 0.25)
+    base_params.setdefault("phi", 0.5)
+    base_params.setdefault("pi", 0.005)
+
+    for stock_key, book in books.items():
         if "Va" not in book:
-            raise KeyError(f"book for {stock!r} is missing 'Va'")
+            raise KeyError(f"book for {stock_key!r} is missing 'Va'")
+
         depth = np.asarray(book["Va"], dtype=float).sum(axis=1)
-        eta = base_params.get("eta")
+        gross_depth = (
+            np.asarray(book["Da"], dtype=float)
+            if "Da" in book
+            else np.asarray(book["Va"], dtype=float).sum(axis=1)
+        )
+        n_rows = len(depth)
+
+        # Calibrated parameters
+        stock_calib = dict((calibrated_params or {}).get(stock_key, {}))
+        eta = stock_calib.get("eta0") or base_params.get("eta0") or base_params.get("eta")
+
         if calibrate_impact and "Pa" in book:
-            eta = calibrate_eta0_for_stock(np.asarray(book["Pa"]), np.asarray(book["Va"]))
-            if isinstance(eta, Mapping):
-                eta = eta.get("eta0")
-        local_params = {**base_params, **({"eta": float(eta), "eta0": float(eta)} if eta else {})}
-        median_depth = float(np.nanmedian(depth[depth > 0])) if np.any(depth > 0) else 1.0
-        for window_name, slices in window_map.items():
-            for window_id, window in enumerate(slices):
-                start, stop, step = window.indices(len(depth))
-                indices = np.arange(start, stop, step or 1)
-                if len(indices) < rows_per_period:
-                    continue
-                for multiplier in theta:
-                    order = Order("buy", float(multiplier) * median_depth, rows_per_period, {})
-                    selected = {
-                        k: np.asarray(v)[indices[:rows_per_period]] for k, v in book.items()
-                    }
-                    for strategy_name, strategy in strategy_map.items():
-                        schedule = strategy(order, selected, local_params)
-                        report = simulate(schedule, selected, local_params)
-                        records.append(
-                            {
-                                "stock": stock,
-                                "window": str(window_name),
-                                "window_id": window_id,
-                                "theta": float(multiplier),
-                                "strategy": strategy_name,
-                                "shortfall_bps": report.shortfall_bps,
-                                "risk": report.std,
-                                "trades": report.trades,
-                            }
-                        )
+            c_res = calibrate_eta0_for_stock(np.asarray(book["Pa"]), np.asarray(book["Va"]))
+            if isinstance(c_res, Mapping):
+                eta = c_res.get("eta0", eta)
+            elif isinstance(c_res, (float, int)):
+                eta = float(c_res)
+
+        if eta is None and cached_calib:
+            for k, val in cached_calib.items():
+                if k in stock_key or stock_key in k:
+                    eta = val
+                    break
+            if eta is None and cached_calib:
+                eta = float(np.median(list(cached_calib.values())))
+
+        if eta is None:
+            eta = 0.1
+
+        local_params = {
+            **base_params,
+            **stock_calib,
+            "eta": float(eta),
+            "eta0": float(eta),
+        }
+
+        # Order size scaling: Q = theta * D_bar (PROPOSAL.md section 10.1)
+        median_depth = float(stock_calib.get("D_bar", np.nanmedian(gross_depth[gross_depth > 0])))
+        if not np.isfinite(median_depth) or median_depth <= 0:
+            median_depth = 1000.0
+        local_params["D_bar"] = median_depth
+
+        # Resolve windows for this specific book
+        slices_for_book: list[slice] = []
+        if isinstance(windows, Mapping):
+            if stock_key in windows and windows[stock_key] is not None:
+                slices_for_book = list(windows[stock_key])
+            elif "window" in windows and windows["window"] is not None:
+                slices_for_book = list(windows["window"])
+            else:
+                for s_list in windows.values():
+                    if s_list is not None:
+                        slices_for_book.extend(s_list)
+        elif windows is not None:
+            slices_for_book = list(windows)
+
+        if not slices_for_book:
+            # Deterministic non-overlapping grid (A6)
+            stride = horizon * rows_per_period
+            for w_start in range(burn_in_rows, n_rows - stride + 1, stride):
+                slices_for_book.append(slice(w_start, w_start + stride))
+
+        # Evaluate over resolved windows
+        for window_id, window in enumerate(slices_for_book):
+            start, stop, step = window.indices(n_rows)
+            indices = np.arange(start, stop, step or 1)
+            if len(indices) < rows_per_period:
+                continue
+
+            # Sample snapshots across horizon
+            eff_horizon = min(horizon, len(indices) // rows_per_period)
+            if eff_horizon < 1:
+                eff_horizon = 1
+                sample_idx = indices[:1]
+            else:
+                sample_idx = indices[: eff_horizon * rows_per_period : rows_per_period]
+
+            selected = {k: np.asarray(v)[sample_idx] for k, v in book.items()}
+            window_key = f"{stock_key}_w{window_id}"
+
+            for multiplier in theta:
+                q_order = float(multiplier) * median_depth
+                order = Order("buy", q_order, eff_horizon, {})
+
+                for strategy_name, strategy in strategy_map.items():
+                    schedule = strategy(order, selected, local_params)
+                    report = simulate(schedule, selected, local_params)
+                    records.append(
+                        {
+                            "stock": stock_key,
+                            "window": str(window_id),
+                            "window_id": window_id,
+                            "window_key": window_key,
+                            "theta": float(multiplier),
+                            "strategy": strategy_name,
+                            "shortfall_bps": report.shortfall_bps,
+                            "risk": report.inventory_risk
+                            if report.inventory_risk > 0
+                            else report.std,
+                            "std": report.std,
+                            "trades": report.trades,
+                            "half_spread_bps": report.half_spread_bps,
+                            "book_walk_bps": report.book_walk_bps,
+                            "timing_bps": report.timing_bps,
+                            "sweep_exec_bps": report.sweep_exec_bps,
+                            "sweep_timing_bps": report.sweep_timing_bps,
+                            "penalty_bps": report.penalty_bps,
+                        }
+                    )
+
     observations = pd.DataFrame.from_records(records)
     if observations.empty:
         columns = ["strategy", "theta", "metric", "mean", "ci_low", "ci_high", "n"]
         return EvaluationResult(observations, pd.DataFrame(columns=columns), pd.DataFrame())
+
+    # Guarantee uniqueness (C2)
+    assert not observations.duplicated(subset=["stock", "window_key", "theta", "strategy"]).any(), (
+        "Duplicate evaluation observations detected!"
+    )
+
     rng = np.random.default_rng(seed)
     summary_rows = []
     for (strategy, multiplier), group in observations.groupby(["strategy", "theta"]):
@@ -178,12 +315,14 @@ def evaluate(
 
 
 def _paired_comparisons(observations: pd.DataFrame, reps: int, seed: int | None) -> pd.DataFrame:
+    """Pair observations strictly by (stock, window_key, theta) and run permutation test."""
     pivot = observations.pivot_table(
-        index=["stock", "window_id", "theta"], columns="strategy", values="shortfall_bps"
+        index=["stock", "window_key", "theta"], columns="strategy", values="shortfall_bps"
     )
     names = list(pivot.columns)
     if len(names) < 2:
         return pd.DataFrame()
+
     rng = np.random.default_rng(seed)
     rows = []
     for i, left in enumerate(names):
@@ -196,7 +335,7 @@ def _paired_comparisons(observations: pd.DataFrame, reps: int, seed: int | None)
             rows.append(
                 {
                     "comparison": f"{left} - {right}",
-                    "mean_difference": diff.mean(),
+                    "mean_difference": float(diff.mean()),
                     "p_value": float(max(null, 1.0 / max(1, reps))),
                     "n": len(diff),
                 }

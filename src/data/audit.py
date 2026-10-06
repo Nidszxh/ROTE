@@ -65,7 +65,19 @@ def detect_scale_exponent(
 
 
 def _audit_provenance(data_root: Path, results: dict[str, Any]) -> list[Path]:
+    import json
+
+    manifest_path = Path(__file__).resolve().parents[2] / "data" / "manifest.json"
+    manifest_map: dict[str, str] = {}
+    if manifest_path.is_file():
+        try:
+            m_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_map = {item["name"]: item["sha256"] for item in m_data.get("files", [])}
+        except Exception as exc:
+            logger.warning("could not read manifest: %s", exc)
+
     files = sorted(data_root.glob("*.txt"))
+    mismatches = []
     for p in files:
         try:
             size = p.stat().st_size
@@ -82,16 +94,28 @@ def _audit_provenance(data_root: Path, results: dict[str, Any]) -> list[Path]:
                 "sha256": h,
             }
         )
+        if p.name in manifest_map and h and h.lower() != manifest_map[p.name].lower():
+            mismatches.append(p.name)
+
     if len(files) == 0:
         results["checks"]["A0"] = "fail"
         results["findings"]["A0"] = f"No FI-2010 files found in {data_root}"
         raise FileNotFoundError(f"No FI-2010 files found in {data_root}")
+
+    if mismatches:
+        results["checks"]["A0"] = "fail"
+        results["findings"]["A0"] = (
+            f"Checksum mismatch against data/manifest.json for files: {', '.join(mismatches)}"
+        )
+        return files
+
     results["checks"]["A0"] = "pass"
     train_files = [f for f in files if "Train" in f.name]
     test_files = [f for f in files if "Test" in f.name]
+    manifest_status = " (all verified against manifest.json)" if manifest_map else ""
     results["findings"]["A0"] = (
-        f"Found {len(files)} files ({len(train_files)} train, {len(test_files)} test), "
-        "all DecPre NoAuction format with 149 features/labels per event."
+        f"Found {len(files)} files ({len(train_files)} train, {len(test_files)} test)"
+        f"{manifest_status}, all DecPre NoAuction format with 149 features/labels per event."
     )
     return files
 
@@ -291,11 +315,20 @@ def _audit_windows(
 
 
 def _audit_fallback(results: dict[str, Any]) -> None:
-    results["checks"]["A7"] = "n/a"
-    results["findings"]["A7"] = (
-        "Fallback (LOBSTER) not required: A1 scale recovery and A4 book integrity hold on every "
-        "file read (train days 1-7, test days 8-9). Day 10 is the reserve split and was not read."
-    )
+    a1_pass = results["checks"].get("A1") == "pass"
+    a4_pass = results["checks"].get("A4") == "pass"
+    if a1_pass and a4_pass:
+        results["checks"]["A7"] = "n/a"
+        results["findings"]["A7"] = (
+            "Fallback (LOBSTER) not required: A1 scale recovery and A4 book integrity hold "
+            "on every file read (train days 1-7, test days 8-9). "
+            "Day 10 is the reserve split and was not read."
+        )
+    else:
+        results["checks"]["A7"] = "fail"
+        results["findings"]["A7"] = (
+            f"Fallback required: upstream checks failed (A1 passed={a1_pass}, A4 passed={a4_pass})."
+        )
 
 
 def _audit_order_realism(config: Mapping[str, Any], results: dict[str, Any]) -> None:
@@ -320,8 +353,6 @@ def run_audit(config: Mapping[str, Any]) -> dict[str, Any]:
     audit_cfg = config.get("audit") or {}
     report_path = Path(audit_cfg.get("report", "data/README.md"))
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    decision_log = Path(audit_cfg.get("decision_log", "docs/decision_log.md"))
-    decision_log.parent.mkdir(parents=True, exist_ok=True)
     results = _empty_results(report_path)
     try:
         try:

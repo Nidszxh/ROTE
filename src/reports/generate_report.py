@@ -11,6 +11,7 @@ from src.models.m1_ac import solve_m1
 from src.models.m2_lp import solve_m2
 from src.models.m3_mip import solve_m3
 from src.models.m4_ahp import ahp_consistency_ratio, ahp_weights
+from src.models.rote_static import solve_rote_static
 from src.reports.visualizations import (
     plot_ahp_ranking,
     plot_benchmark_frontier,
@@ -27,18 +28,25 @@ from src.utils.contracts import Order, Schedule
 
 def generate_all_reports_and_figures(
     stock: str = STOCK_NAMES[0],
-    day: int = 8,
+    day: int = 6,
     out_dir: Path | None = None,
+    allow_test: bool = False,
 ) -> Path:
     """
     Run full model suite, generate high-resolution figures, and compile an
     executive Markdown execution report.
     """
+    if day >= 8 and not allow_test:
+        raise ValueError(
+            f"Day {day} is in the frozen test set (days 8-10). Pass allow_test=True "
+            "with confirmation to generate reports for test days."
+        )
+
     if out_dir is None:
         out_dir = Path("results/figures")
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading data for {stock} on Day {day} (Held-out Test)...")
+    print(f"Loading data for {stock} on Day {day}...")
     book_raw, _, _ = load_day(stock, day)
 
     # 1. Microstructure Figures
@@ -90,6 +98,7 @@ def generate_all_reports_and_figures(
         "M1": solve_m1(order, book, params).shares,
         "M2": solve_m2(order, book, params).shares,
         "M3": solve_m3(order, book, params).shares,
+        "ROTE-Static": solve_rote_static(order, book, params).shares,
         "TWAP": twap_plan(order).shares,
         "Depth-Prop": depth_proportional_plan(order, book).shares,
         "VWAP Proxy": vwap_proxy_plan(order, book).shares,

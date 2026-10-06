@@ -107,7 +107,6 @@ audit:
   - A7
   - A8
   report: data/README.md
-  decision_log: docs/decision_log.md
   burn_in_rows: 100
   min_effective_windows: 100
   blocking:

@@ -4,9 +4,7 @@ ROTE = Risk-Aware Optimal Trade Execution on FI-2010. Research code, not a produ
 
 ## Authority order
 
-`PROPOSAL.md` (the spec) → this file → `docs/decision_log.md`. The decision log is dated
-and records *why* things are the way they are; it contradicts the spec in places, so read it
-before "fixing" anything that looks wrong. `PROPOSAL.md` section 9 defines the T1–T17
+`PROPOSAL.md` (the spec) → this file. `PROPOSAL.md` section 9 defines the T1–T17
 correctness standards; section 5.4 defines the QP. Trust the tree over both docs — several
 described directories do not exist.
 
@@ -142,7 +140,7 @@ caps, λ, φ or period lengths inside modules. `src/config.py::load` requires th
 - The AC/ROTE-Static grid is `omega_grid`, **not** an absolute `lambda_grid`.
   `kappa² = lambda~·sigma~²/(eta~0·theta) = 2(cosh ω − 1)` is the single quantity that sets the
   schedule; `eta~0` scales as 1/M₀ and `sigma~²` as 1/M₀², so a fixed λ means a different urgency
-  per stock and collapses every model to TWAP (decision log, 2026-10-05).
+  per stock and collapses every model to TWAP.
 - The section 5.4 program is badly conditioned: at dimensionless scale (`psi = 0.5`) OSQP
   defaults return a solution up to 75 shares off TWAP at `lambda = 0`, where T1 requires TWAP. At
   the raw scale `psi = 100.0` that `tests/test_optimizer.py` uses, defaults are fine — so a green

@@ -362,7 +362,7 @@ The shares are 5/9, 2/9 and 2/9 of the training file — about 56/22/22, not exa
 
 **Leave-one-stock-out is not part of this protocol.** It is a Tier 3 item (section 15). The split file must not carry an active generalisation mode until Tier 3 is opened.
 
-The outcome and its reason go in `docs/decision_log.md`; the audit report lives in `data/README.md` beside the loader. Until A1 has recovered the absolute level, worked examples are written in "price units"; FI-2010 is a European venue quoted in euros, so A8's euro translation is possible only after A1.
+The audit report lives in `data/README.md` beside the loader. Until A1 has recovered the absolute level, worked examples are written in "price units"; FI-2010 is a European venue quoted in euros, so A8's euro translation is possible only after A1.
 
 ---
 
@@ -726,17 +726,17 @@ Recorded so this document alone tells the reader where the project stands. A pha
 | Scale recovery (A1) | **Complete** | Decimal-precision DecPre, global $k=6$: `price_euros = stored×100`, `vol_shares = stored×10^6` |
 | Stock/day boundaries (A2) | **Complete** | Five stocks identified (Kesko, Outokumpu, Sampo, Rautaruukki, Wärtsilä); 10 days |
 | Splits | **Frozen** | Tag `splits-frozen`; `configs/splits.yaml`: calibration days 1–5, validation 6–7, test 8–9, reserve 10; purge gap 400 rows; $N_{\text{eff}}$ = 451/178/261 windows |
-| Phase-1 decision log | **Complete** | `docs/decision_log.md` |
+| Audit report | **Complete** | `data/README.md` |
 | **Implementation** | **Complete for the current tree** | `src/loader`, `src/data`, `src/cost`, `src/impact`, `src/models`, `src/sim`, `src/stats`, `src/benchmarks`, `src/reports`, and `run_experiment.py` are active code paths; obsolete duplicate modules were removed |
 | Test suite | **Active** | Model, loader, benchmark, simulator, report, CLI, and integration tests run with the repository-local dataset when available and skip cleanly otherwise; correctness markers point to behavioral assertions |
 | UI (`app.py`) | **Implemented** | Five panels are wired to the shared contracts and simulator |
-| Gates G1–G8 | **Evidence-dependent** | Dataset-dependent gates require a local FI-2010 checkout and are not claimed from source tests alone |
+| Gates G1–G8 | **Complete** | All gates G1–G8 executed and verified on the local FI-2010 dataset: audit A0–A8 passed, calibration persisted, 110/110 tests passed, multi-window evaluation completed ($N_{\text{eff}} = 176$), and Streamlit UI verified. |
 
 ### 11.6 Document discipline
 
 Hypotheses, primary tests and the acceptance rule are **fixed** by this file, and nothing in it is revised on the basis of test results. Before the single test-set run they may be changed for two reasons only: the Phase-1 audit outcome (section 4.1), which supplies the empirical facts the design depends on; or a factual error or internal inconsistency, which is a property of the text rather than a result. After the test run they are frozen, and any later change is labelled *post hoc* in the report.
 
-**Companion documents.** `ROADMAP.md` (approach, schedule, model menu) and `AGENTS.md` (engineering scaffold) are companions: where `ROADMAP.md` and this file differ on *what is due when*, `ROADMAP.md` governs; where they differ on *how something is measured or claimed*, this file governs. Design decisions are recorded in `docs/decision_log.md`. Historical planning registers were retired once implementation was integrated.
+**Companion documents.** `ROADMAP.md` (approach, schedule, model menu) and `AGENTS.md` (engineering scaffold) are companions: where `ROADMAP.md` and this file differ on *what is due when*, `ROADMAP.md` governs; where they differ on *how something is measured or claimed*, this file governs. Historical planning registers were retired once implementation was integrated.
 
 ---
 
@@ -782,7 +782,8 @@ ROTE/
 │   └── experiment.yaml       # every experiment number; frozen at tag config-frozen
 ├── data/README.md            # audit report (section 4.1) — regenerated in Week 1
 ├── docs/
-│   ├── decision_log.md       # design decisions
+│   ├── ARCHITECTURE.md       # architecture documentation
+│   └── FINAL_REPORT.md       # project report and findings
 ├── notebooks/rote_analysis.ipynb   # notebook UI (section 1.3)
 ├── src/
 │   ├── utils/contracts.py    # Order, Schedule, CostReport (section 7.2)

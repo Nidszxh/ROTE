@@ -6,7 +6,7 @@ Authoritative audit report generated in accordance with PROPOSAL.md section 4.1.
 
 | Check | Name | Status | Finding |
 |---|---|---|---|
-| **A0** | Provenance | `PASS` | Found 4 files (1 train, 3 test), all DecPre NoAuction format with 149 features/labels per event. |
+| **A0** | Provenance | `PASS` | Found 4 files (1 train, 3 test) (all verified against manifest.json), all DecPre NoAuction format with 149 features/labels per event. |
 | **A1** | Scale Recovery | `PASS` | DecPre variant confirmed. Global exponent k=6. Scale recovery: price_euros = stored * 100, vol_shares = stored * 10^6. |
 | **A2** | Stock/Day Boundaries | `PASS` | Detected 4 discontinuities separating 5 blocks. Identified Nordic equities: Kesko (KESBV), Outokumpu (OUT1V), Sampo (SAMPO), Rautaruukki (RTRKS), Wärtsilä (WRT1V). Blocks are stock-major over days 1-7. |
 | **A3** | Time Axis & Periodicity | `PASS` | Event-based representations: 10 events per row. One period = 20 rows = 200 events. Execution horizon T = 20 periods. |

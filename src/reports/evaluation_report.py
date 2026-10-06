@@ -11,18 +11,26 @@ def generate_evaluation_report(
     days: list[int],
     theta: list[float],
     out_path: Path = Path("results/EVALUATION_REPORT.md"),
+    allow_test: bool = False,
 ) -> Path:
-    """Run the configured comparison and write a compact Markdown table."""
+    """Run the configured comparison and write a compact Markdown table.
+
+    Requires allow_test=True if any days in days belong to the frozen test split (days 8-9).
+    """
+    if any(d >= 8 for d in days) and not allow_test:
+        raise ValueError(
+            "Days 8–9 are the frozen test set. Evaluation requires explicit confirmation "
+            "(--test --confirm or allow_test=True) to touch test days."
+        )
+
     books = {}
-    windows = {}
     for stock in stocks:
         for day in days:
             book, _, _ = load_day(stock, day)
             key = f"{stock}-day{day}"
             books[key] = book
-            end = len(book["M"])
-            windows[key] = [slice(100, end), slice(100, max(100, end // 2))]
-    result = evaluate(books, windows, theta=theta)
+
+    result = evaluate(books, None, theta=theta)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "# ROTE evaluation",

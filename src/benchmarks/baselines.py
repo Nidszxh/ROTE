@@ -28,6 +28,14 @@ def _normalize_shares(weights: np.ndarray, total_size: float, horizon: int) -> n
     return np.full(horizon, total_size / horizon, dtype=float)
 
 
+def immediate_plan(order: Order) -> Schedule:
+    """Execute entire parent order in the first period."""
+    size, horizon = _validate_order(order)
+    shares = np.zeros(horizon, dtype=float)
+    shares[0] = size
+    return Schedule(shares=shares)
+
+
 def twap_plan(order: Order) -> Schedule:
     """
     Generate a Time-Weighted Average Price (TWAP) execution schedule.
@@ -39,7 +47,20 @@ def twap_plan(order: Order) -> Schedule:
     return Schedule(shares=shares)
 
 
-def depth_proportional_plan(order: Order, book: Mapping[str, Any]) -> Schedule:
+def twap_prime_plan(order: Order, factor: float = 0.5) -> Schedule:
+    """TWAP over shortened horizon T' = ceil(factor * T) (PROPOSAL.md section 7.1)."""
+    size, horizon = _validate_order(order)
+    t_prime = max(1, min(horizon, int(np.ceil(horizon * factor))))
+    shares = np.zeros(horizon, dtype=float)
+    shares[:t_prime] = size / t_prime
+    return Schedule(shares=shares)
+
+
+def depth_proportional_plan(
+    order: Order,
+    book: Mapping[str, Any],
+    params: Mapping[str, Any] | None = None,
+) -> Schedule:
     """
     Generate an execution schedule proportional to available ask depth.
 
@@ -49,6 +70,8 @@ def depth_proportional_plan(order: Order, book: Mapping[str, Any]) -> Schedule:
         Target order containing size and horizon.
     book : Mapping[str, Any]
         Market data dictionary containing key 'Da' (ask depth array).
+    params : Mapping[str, Any] | None
+        Optional execution settings (rho, trailing_median_depth).
     """
     size, horizon = _validate_order(order)
     if "Da" not in book:

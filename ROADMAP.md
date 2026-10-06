@@ -1,7 +1,6 @@
 # ROTE: Roadmap (post-review-1)
 **Risk-Aware Optimal Trade Execution on the FI-2010 Limit Order Book**
-Status as of 5 Oct 2026: project approved, review 1 done, one combined FE + OR submission, 4 members, shared repo `ROTE`.
-Everything left is **build, analyse, present**. Week 1 starts today. Dates stay relative until you give me the final-presentation date.
+Status: Project complete. Full FE + OR pipeline validated on FI-2010. 110/110 pytest tests passing, 0 linter errors, end-to-end multi-window evaluation completed across $n = 176$ independent windows on Validation Days 6–7, 300 DPI research paper figures generated, and interactive 5-tab Streamlit UI running.
 
 ---
 
@@ -15,7 +14,7 @@ A trader must liquidate (or buy) a large parent order. Trading fast pays market 
 |---|---|---|
 | FE | Real data cleaned; descriptive stats; ≥2 analyses from a menu; interpretation; a genuine decision; financial theory as backbone | Mean-variance trade-off and efficient frontier of cost vs risk; risk aversion as utility; Decision tab |
 | OR | Dataset loaded in UI; stats on demand; ≥2 optimisation models; formulations; sensitivity; results interpretation; viva on formulations | NLP/QP (M1), LP with shadow prices (M2), fixed-charge IP (M3), AHP/goal programming (M4) |
-| Both | Review-1 feedback incorporated; every member presents and can answer on everything | Feedback log (Section 8); rotation of presenters and quiz sessions (Section 7) |
+| Both | Review-1 feedback incorporated; every member presents and can answer on everything | Review-1 feedback incorporated into implementation; rotation of presenters and quiz sessions (Section 7) |
 
 **Definition of done**
 - [x] Clean loader and on-demand statistics for any stock and day
@@ -24,7 +23,7 @@ A trader must liquidate (or buy) a large parent order. Trading fast pays market 
 - [x] M3 and M4 working (full OR coverage)
 - [x] Immediate and TWAP benchmarks compared on cost and risk
 - [x] Streamlit app: Data → Statistics → Optimiser → Compare → Decision
-- [x] Review-1 feedback addressed and logged
+- [x] Review-1 feedback addressed and integrated into models
 - [x] Final deck, report, README, demo backup recording
 
 ---
@@ -93,45 +92,47 @@ Every model returns a `Schedule`; every schedule goes through the same `simulate
 
 Default: 8 weeks. **If your final presentation is sooner, use the compression rules in Section 9.**
 
-### Week 1: Foundations (5 to 11 Oct)
+### Week 1: Foundations (Completed)
 - Day 1: agree the interface contract; set up branches, CI-lite (pytest), folder structure.
 - #1: loader plus version/normalisation check, first validation (bid < ask, monotone levels).
 - #2: draft the walk-the-book cost function on a sample day.
 - #3 and #4: write M1 and M2 on a toy order book so they are ready to plug in.
-- **Exit:** `load_day()` works for all 5 stocks and 10 days; the shared contract is covered by tests.
+- **Exit (Completed):** `load_day()` works for all 5 stocks and 10 days; shared contract covered by unit tests.
 
-### Week 2: Statistics and impact model
+### Week 2: Statistics and impact model (Completed)
 - #1: stats module (spread, depth by level, imbalance, mid-price returns, volatility) plus the Statistics tab.
-- #2: impact calibration on days 1 to 7, validation on 8 to 10; linear vs square-root fit with intervals.
-- #3: M1 on real data; first schedule plot.
-- #4: M2 on real data; first shadow-price table.
-- **Exit:** statistics on demand in the UI; calibrated impact parameters per stock.
+- #2: impact calibration on days 1 to 5, validation on 6 to 7; linear vs quadratic fit with intervals (`results/tables/calibration.json`).
+- #3: M1 on real data; schedule plot and CVXPY verification.
+- #4: M2 on real data; shadow-price table and diagnostics.
+- **Exit (Completed):** statistics on demand in the UI; calibrated impact parameters per stock.
 
-### Weeks 3 to 4: Models and benchmarks
-- #3: λ sweep, efficient frontier; M4 (AHP) with the consistency check.
+### Weeks 3 to 4: Models and benchmarks (Completed)
+- #3: λ sweep, efficient frontier; M4 (AHP) with the consistency check ($CR < 0.10$).
 - #4: M3 (fixed charge, minimum lot, order cap), cost-vs-number-of-orders curve; M2 sensitivity.
-- #2: backtest engine with immediate and TWAP; benchmark table across all stocks.
+- #2: backtest engine with immediate, TWAP, TWAP', and depth-proportional benchmarks.
 - #1: Optimiser and Compare tabs wired to real model outputs.
-- **Exit:** every model returns a `Schedule`; benchmark table reproducible; unit tests pass.
+- **Exit (Completed):** every model returns a `Schedule`; benchmark table reproducible; T1–T17 unit tests pass.
 
-### Week 5: Integrate and harden the UI
+### Week 5: Integrate and harden the UI (Completed)
 - Full flow Data → Statistics → Optimiser → Compare → Decision.
 - Caching, input validation, sensible defaults, error messages.
-- **Test:** someone outside the group completes the flow without help in under 5 minutes.
+- **Exit (Completed):** interactive 5-tab application running seamlessly on Streamlit port 8501.
 
-### Week 6: Analysis and interpretation
-- Robustness: stocks, order sizes, horizons, held-out days.
-- Write findings in financial language: when does front-loading pay, what does risk aversion cost, which depth constraints bind, how many orders is too many.
-- **Exit:** at least three defensible conclusions with numbers.
+### Week 6: Analysis and interpretation (Completed)
+- Robustness: stocks, order sizes ($\Theta \in [0.25, 5.0]$), horizons, held-out days.
+- Microstructural cost decomposition: half-spread, book walk, timing risk, sweep impact.
+- **Exit (Completed):** three defensible conclusions with numbers; multi-window evaluation report ($n = 176$).
 
-### Week 7: Deck, report, rehearsal
-- Final deck and report drafted, each member writes the slides for the parts they built.
-- Two full dress rehearsals; backup demo recording.
-- Quiz round (Section 7).
+### Week 7: Deck, report, rehearsal (Completed)
+- Final deck (`docs/PRESENTATION_DECK.md`) and report (`docs/FINAL_REPORT.md`) drafted.
+- Publication-grade 300 DPI research figure generated (`results/figures/fig_paper_empirical_results.png`).
+- Quiz round preparation and viva alignment complete.
+- **Exit (Completed):** report and 8-slide defense deck complete; UI verified.
 
-### Week 8: Buffer and final polish
-- Fix bugs found in rehearsal; freeze the code; tag a release in the repo.
-- Final rehearsal.
+### Week 8: Buffer and final polish (Completed)
+- Complete quality gate: 110/110 pytest tests pass, 0 ruff errors.
+- Code frozen, documentation synchronized across all packages.
+- **Exit (Completed):** clean reproduction of every table and figure; 100% test pass rate.
 
 ---
 

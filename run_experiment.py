@@ -87,6 +87,8 @@ def _cmd_freeze_splits(cfg: dict) -> int:
 
 
 def _cmd_figures(cfg: dict) -> int:
+    from pathlib import Path
+
     from data import figures, loader
 
     _, lob, boundaries = loader.load_train_lob(cfg)
@@ -94,6 +96,18 @@ def _cmd_figures(cfg: dict) -> int:
     print(f"Generated {len(paths)} audit and microstructure figures in results/figures/:")
     for p in paths:
         print(f"  - {p}")
+
+    eval_md = Path("results/EVALUATION_REPORT.md")
+    if eval_md.is_file():
+        from src.reports.paper_figures import (
+            generate_research_paper_figure,
+            parse_evaluation_markdown,
+        )
+
+        s_df, c_df = parse_evaluation_markdown(eval_md)
+        paper_fig = generate_research_paper_figure(s_df, c_df)
+        print(f"Generated publication research paper figure:\n  - {paper_fig}")
+
     return 0
 
 
@@ -128,15 +142,24 @@ def _cmd_calibrate(cfg: dict) -> int:
     return 0
 
 
-def _cmd_evaluate(cfg: dict) -> int:
+def _cmd_evaluate(cfg: dict, args: list[str]) -> int:
     from src.loader.loader import STOCK_NAMES
     from src.reports.evaluation_report import generate_evaluation_report
 
     evaluation = cfg.get("execution", {}).get("evaluation", {})
     theta = cfg.get("execution", {}).get("theta", [1.0])
     validation_days = int(evaluation.get("day_blocks", {}).get("validation_days", 2))
-    days = list(range(8, 8 + validation_days))
-    path = generate_evaluation_report(STOCK_NAMES, days, theta)
+    if "--test" in args:
+        if "--confirm" not in args:
+            print("evaluate: --test requires --confirm to access frozen test days 8–9")
+            return 2
+        days = list(range(8, 8 + validation_days))
+        allow_test = True
+    else:
+        # Default to validation split (days 6–7)
+        days = list(range(6, 6 + validation_days))
+        allow_test = False
+    path = generate_evaluation_report(STOCK_NAMES, days, theta, allow_test=allow_test)
     print(f"Evaluation report written to {path}")
     return 0
 
@@ -169,11 +192,17 @@ def main(argv=None) -> int:
     if cmd == "evaluate":
         from config import load
 
-        return _cmd_evaluate(load())
+        return _cmd_evaluate(load(), args[1:])
     if cmd == "frontier":
+        if "--test" in args and "--confirm" not in args:
+            print("frontier: --test requires --confirm flag")
+            return 2
         from src.reports.generate_report import generate_all_reports_and_figures
 
-        generate_all_reports_and_figures()
+        if "--test" in args:
+            generate_all_reports_and_figures(day=8, allow_test=True)
+        else:
+            generate_all_reports_and_figures()
         print("frontier: generated results/figures and results/MODEL_EXECUTION_REPORT.md")
         return 0
     if cmd == "check-formulation":
@@ -204,7 +233,10 @@ def main(argv=None) -> int:
                 return 1
         from src.reports.generate_report import generate_all_reports_and_figures
 
-        generate_all_reports_and_figures(day=8 if "--test" in args else 1)
+        if "--test" in args:
+            generate_all_reports_and_figures(day=8, allow_test=True)
+        else:
+            generate_all_reports_and_figures()
         return 0
     print(f"run_experiment: unknown command {cmd!r}")
     print(USAGE)

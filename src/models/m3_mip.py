@@ -20,6 +20,9 @@ def build_m3(
     L_min: float,
     c_f: float,
     K: int | None = None,
+    allow_sweep: bool = False,
+    psi: float | None = None,
+    **kwargs: Any,
 ) -> tuple[cp.Problem, cp.Variable, cp.Variable, cp.Expression, cp.Variable]:
     """
     Build M3 Mixed-Integer Programming (MIP) execution model with fixed costs and lot constraints.
@@ -74,12 +77,17 @@ def build_m3(
 
     constraints: list[cp.Constraint] = [
         y[0] == Q,
-        y[T] == 0,
         q <= Va[:T, :],
         y[1:] == y[:-1] - x,
         x <= rho * Da_net[:T],
         x <= Q * z,  # Big-M upper bound
     ]
+
+    allow_sweep = bool(kwargs.get("allow_sweep", False))
+    if allow_sweep:
+        constraints.append(y[T] >= 0)
+    else:
+        constraints.append(y[T] == 0)
 
     if L_min > 0:
         constraints.append(x >= L_min * z)
@@ -87,9 +95,14 @@ def build_m3(
     if K is not None:
         constraints.append(cp.sum(z) <= K)
 
-    # Cost: spread cost + fixed transaction fee per active step
+    # Cost: spread cost + fixed transaction fee per active step + optional sweep penalty
     cost_per_share = Pa[:T, :] - mid[:T, np.newaxis]
     total_cost = cp.sum(cp.multiply(cost_per_share, q)) + c_f * cp.sum(z)
+    if allow_sweep:
+        M0 = float(mid[0]) if len(mid) > 0 else 100.0
+        P_max = float(Pa[0, -1]) if Pa.shape[1] > 0 else M0 * 1.01
+        psi = float(kwargs.get("psi", max(P_max * 1.005 - M0, 0.01 * M0)))
+        total_cost += psi * y[T]
 
     prob = cp.Problem(cp.Minimize(total_cost), constraints)
     return prob, q, y, x, z
@@ -128,6 +141,9 @@ def solve_m3(
     if Pa.shape[0] < T or Va.shape[0] < T or len(mid) < T or len(Da) < T:
         raise ValueError(f"Market book arrays must have at least {T} rows")
 
+    allow_sweep = bool(p.get("allow_sweep", False))
+    psi = p.get("psi")
+
     prob, q, y, x, z = build_m3(
         Q=Q,
         T=T,
@@ -139,6 +155,8 @@ def solve_m3(
         L_min=L_min,
         c_f=c_f,
         K=K,
+        allow_sweep=allow_sweep,
+        psi=float(psi) if psi is not None else None,
     )
 
     prob.solve(solver=cp.HIGHS)

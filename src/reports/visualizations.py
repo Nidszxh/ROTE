@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -325,9 +328,19 @@ def plot_m2_diagnostics(order: Order, book: Mapping[str, Any], rho: float = 0.25
     )
     prob.solve()
 
-    trades = np.asarray(x.value, dtype=float) if x.value is not None else np.zeros(T)
+    trades = (np.asarray(x.value, dtype=float) * Q) if x.value is not None else np.zeros(T)
     # Extract dual shadow prices for participation constraint
-    dual_val = constraints[4].dual_value
+    dual_val = None
+    for c in constraints:
+        if (
+            getattr(c, "shape", None) == (T,)
+            and hasattr(c, "dual_value")
+            and not type(c).__name__.startswith("Zero")
+        ):
+            dual_val = c.dual_value
+            break
+    if dual_val is None and len(constraints) >= 4:
+        dual_val = constraints[3].dual_value
     shadow_prices = np.asarray(dual_val, dtype=float) if dual_val is not None else np.zeros(T)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 5.0), dpi=150, sharex=True)
@@ -449,6 +462,7 @@ def plot_benchmark_frontier(
         "M1": COLORS["purple"],
         "M2": COLORS["teal"],
         "M3": COLORS["accent"],
+        "ROTE-Static": COLORS["ask"],
         "TWAP": COLORS["bid"],
         "Depth-Prop": COLORS["dark"],
         "VWAP Proxy": COLORS["mid"],
